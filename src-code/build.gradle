@@ -31,20 +31,17 @@ java {
         languageVersion = JavaLanguageVersion.of(17)
     }
 
+}
+
+jar {
+     manifest {
+         attributes 'Main-Class': 'jh.craft.interpreter.Main'
+
+     }
 //     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-//     manifest {
-//         attributes 'Main-Class': 'jh.projects.grades.Main'
-//     }
-//     // what does thing do??
 //     from {
 //         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
 //     }
-}
-
-
-application {
-    // Define the main class for the application.
-    mainClass = 'jh.craft.interpreter.Main'
 }
 
 tasks.named('test') {
