@@ -30,11 +30,21 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
+
+//     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+//     manifest {
+//         attributes 'Main-Class': 'jh.projects.grades.Main'
+//     }
+//     // what does thing do??
+//     from {
+//         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+//     }
 }
+
 
 application {
     // Define the main class for the application.
-    mainClass = 'craft.compiler.App'
+    mainClass = 'jh.craft.interpreter.Main'
 }
 
 tasks.named('test') {
