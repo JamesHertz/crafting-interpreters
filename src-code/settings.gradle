@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = 'craft-compiler-1'
-include('app')
+// include('app')
