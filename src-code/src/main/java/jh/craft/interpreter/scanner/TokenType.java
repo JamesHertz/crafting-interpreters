@@ -1,4 +1,4 @@
-package jh.craft.interpreter;
+package jh.craft.interpreter.scanner;
 
 enum TokenType {
     // Single-character tokens.

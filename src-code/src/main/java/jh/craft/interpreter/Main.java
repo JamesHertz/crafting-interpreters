@@ -3,8 +3,28 @@
  */
 package jh.craft.interpreter;
 
+import jh.craft.interpreter.scanner.Scanner;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello, world");
+        if( args.length < 1 ){
+            System.err.println("usage: main <filename>");
+            System.exit(1);
+        }
+
+        var filename = args[0];
+        try{
+            var source = Files.readString( Path.of( filename ) );
+            for (var token : Scanner.scanTokens( source ).value()){
+                System.out.println("- " + token);
+            }
+        }catch (Exception ex){
+            System.err.printf("Error reading '%s': %s\n", filename, ex);
+            System.exit(1);
+        }
+
     }
 }
