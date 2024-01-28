@@ -5,26 +5,65 @@ package jh.craft.interpreter;
 
 import jh.craft.interpreter.scanner.Scanner;
 
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class Main {
     public static void main(String[] args) {
-        if( args.length < 1 ){
-            System.err.println("usage: main <filename>");
-            System.exit(1);
-        }
-
-        var filename = args[0];
-        try{
-            var source = Files.readString( Path.of( filename ) );
-            for (var token : Scanner.scanTokens( source ).value()){
-                System.out.println("- " + token);
-            }
-        }catch (Exception ex){
-            System.err.printf("Error reading '%s': %s\n", filename, ex);
+        if( args.length == 0)
+            runPrompt();
+        else if( args.length == 1 )
+            runFile( args[0] );
+        else  {
+            System.err.println("usage: jlox <filename>");
             System.exit(1);
         }
 
     }
+
+    private static void runPrompt(){
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader( System.in )
+        );
+
+        String line = null;
+        try {
+            for(;;){
+                System.out.print("> ");
+                line = reader.readLine();
+                if( line == null) break;
+                run(line);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void runFile(String filename){
+        try {
+            var source = Files.readString(Path.of(filename));
+            run( source );
+        } catch (IOException e) {
+            System.out.printf(
+                    "Error reading '%s': %s\n", filename, e.getMessage()
+            );
+            System.exit(1);
+        }
+
+    }
+
+
+    private static void run(String text){
+        var res = Scanner.scanTokens(text);
+
+        if ( res.isOk() ){
+            res.value().forEach(
+                    token -> System.out.println("-> " + token)
+            );
+        } else
+            System.out.printf("Error: %s\n", res.error());
+    }
+
+
 }

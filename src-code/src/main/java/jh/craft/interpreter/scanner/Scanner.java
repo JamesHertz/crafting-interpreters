@@ -15,13 +15,14 @@ public class Scanner {
         while(scanner.hasNext()){
             var token = scanner.scanToken();
 
-            if( token.isEmpty() ){
+            if( token.isPresent() )
+                tokens.add( token.get() );
+            else {
                 var error = scanner.getError();
                 if ( error != null )
                     return Result.error( error );
             }
 
-            token.ifPresent(tokens::add);
         }
 
         // when the text is over the scanner

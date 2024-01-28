@@ -1,0 +1,15 @@
+#! /usr/bin/env sh
+
+# BY NOW!!
+case "$1" in
+    -b|--build)
+        echo "-> building jlox"
+        ./gradlew build || exit 1 # -q examples:build
+        shift
+    ;;
+esac
+
+echo "-> running jlox"
+java -jar build/libs/*.jar $*
+
+
