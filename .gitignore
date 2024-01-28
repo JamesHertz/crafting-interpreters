@@ -4,4 +4,4 @@ bin
 .idea
 .DS_Store
 .settings
-
+/src-code/examples
