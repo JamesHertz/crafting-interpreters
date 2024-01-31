@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 from io import TextIOWrapper
-from os import write
-
 
 FILE_NAME = "src/main/java/jh/craft/interpreter/representation/Expr.java"
 
@@ -13,24 +11,38 @@ CLASSES = {
     'Unary'  : 'Token operator, Expr expression'
 }
 
+def join_lines(lines):
+    return '\n'.join(lines)
+
 def generate_classes( file : TextIOWrapper ) :
-    file.write("""
+    file.write(f"""
 package jh.craft.interpreter.representation;
 
-public abstract class Expr {
+import jh.craft.interpreter.scanner.Token;
 
-    public abstract <T> T accept( Visitor<T> visitor);
+public abstract class Expr {{
 
-    public interface Visitor<T> {
+    public interface Visitor<T> {{
+{ join_lines(
+    [
+        f'        T visit{cname}( {cname} {cname.lower()} );' 
+        for cname in CLASSES
+    ]
+)}
+    }}
+
+    public abstract <T> T accept( Visitor<T> visitor );
+{
+    join_lines([
+        f'    public record {cname}( {args} ) {{}};' 
+        for cname, args in CLASSES.items()
+    ])
+}
+
+}}
+
 """)
-
-    for class_name in CLASSES:
-        file.write(
-            f'        T visit{class_name}({class_name} {class_name.lower()});\n'
-        )
-    
-    file.write('    }')
-
+   
 def main():
     with open(FILE_NAME, "w") as file:
         generate_classes(file)
