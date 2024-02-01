@@ -1,5 +1,8 @@
 package jh.craft.interpreter.scanner;
 
+import jh.craft.interpreter.errors.ParsingError;
+import jh.craft.interpreter.errors.ParsingException;
+
 import java.util.*;
 
 class TextScanner {
@@ -28,7 +31,6 @@ class TextScanner {
     private int line;
     private int start;
     private int current;
-    private SyntaxError error;
 
     public TextScanner(String source){
         this.source = source;
@@ -36,11 +38,6 @@ class TextScanner {
         this.line    = 0;
         this.start   = 0;
         this.current = 0;
-        this.error   = null;
-    }
-
-    public SyntaxError getError(){
-        return error;
     }
 
     public boolean hasNext(){
@@ -103,7 +100,7 @@ class TextScanner {
                 if( this.isDigit( value ) )
                     yield scanNumber();
 
-                yield this.error( "Unexpected symbol" );
+                throw this.error( "Unexpected symbol" );
             }
 
         };
@@ -146,7 +143,7 @@ class TextScanner {
                 next = advance();
                 if(next == '\n') line++;
                 if (next == '\0')
-                    return this.error( "Unended comment. Missing '*/'");
+                    throw this.error( "Unended comment. Missing '*/'");
             }while( next != '*' || !match('/') );
 
         } else {
@@ -163,7 +160,7 @@ class TextScanner {
         }while(value != '"' && value != '\0');
 
         if(value == '\0'){
-            return this.error( "Unfinished string. Missing a '\"'" );
+            throw this.error( "Unfinished string. Missing a '\"'" );
         }
 
         var stringValue = source.substring(start + 1, current-1);
@@ -198,7 +195,7 @@ class TextScanner {
                     TokenType.NUMBER, Double.parseDouble( value )
             );
         }catch (NumberFormatException ex){
-            return this.error(
+            throw this.error(
                     "Number out of range: %s", ex.getMessage()
             );
         }
@@ -211,18 +208,16 @@ class TextScanner {
     private Token createToken(TokenType type, Object literal){
         var lexeme = source.substring(start, current);
         return new Token(
-                type, lexeme, literal, line
+                type, lexeme, literal, line, current - 1
         );
     }
 
 
     // My shaky way of dealing with errors
-    private Token error(String fmt, Object ...args){
-        this.error = new SyntaxError(
-                line, current - 1, source, String.format(fmt, args)
+    private ParsingException error(String fmt, Object ...args){
+        return new ParsingException(
+                line, current - 1, String.format(fmt, args)
         );
-
-        return null; // just for the sake of convenience c:
     }
 
 

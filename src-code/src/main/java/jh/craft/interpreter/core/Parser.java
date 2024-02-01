@@ -1,5 +1,8 @@
-package jh.craft.interpreter.parser;
+package jh.craft.interpreter.core;
 
+import jh.craft.interpreter.errors.ParsingError;
+import jh.craft.interpreter.errors.ParsingException;
+import jh.craft.interpreter.errors.Result;
 import jh.craft.interpreter.representation.Expr;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.scanner.TokenType;
@@ -10,6 +13,7 @@ import java.util.List;
 
 public class Parser {
 
+    // TODO: ADD NICE ERRORS HANDLING c:
     private final List<Token> tokens;
     private int current;
 
@@ -17,7 +21,6 @@ public class Parser {
         this.tokens = tokens;
         this.current = 0;
     }
-
 
     public Expr parse(){
         return expression();
@@ -98,14 +101,20 @@ public class Parser {
                 if( match( RIGHT_PAREN ) ){
                     yield new Expr.Grouping( expr );
                 }
-                throw new RuntimeException("Expected ')' :c");
+                throw error("Expected ')' :c");
             }
             default -> {
-                throw new RuntimeException("Expected an expression :c");
+                throw error("Expected an expression :c");
             }
         };
     }
 
+    public ParsingException error(String msg){
+        var token = previous();
+        return new ParsingException(
+                token.line(), token.position(), msg
+        );
+    }
 
     public boolean match(TokenType...types){
         if( isAtEnd() )  // by now c:
@@ -120,7 +129,6 @@ public class Parser {
         }
         return false;
     }
-
 
     private boolean isAtEnd(){
         return peek().type() == EOF;
@@ -139,10 +147,13 @@ public class Parser {
     }
 
 
-
-    public static Expr parse(List<Token> tokens){
-        var aux = new Parser(tokens);
-        return aux.parse();
+    public static Result<Expr, ParsingError> parse(List<Token> tokens){
+        try{
+            var aux = new Parser(tokens);
+            return Result.ok( aux.parse() );
+        } catch (ParsingException ex){
+            return Result.error( ex.getError() );
+        }
     }
 
 
