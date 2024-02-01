@@ -3,6 +3,8 @@
  */
 package jh.craft.interpreter;
 
+import jh.craft.interpreter.parser.Parser;
+import jh.craft.interpreter.representation.AstPrinter;
 import jh.craft.interpreter.scanner.Scanner;
 
 import java.io.*;
@@ -11,6 +13,7 @@ import java.nio.file.Path;
 
 public class Main {
     public static void main(String[] args) {
+
         if( args.length == 0)
             runPrompt();
         else if( args.length == 1 )
@@ -58,8 +61,13 @@ public class Main {
         var res = Scanner.scanTokens(text);
 
         if ( res.isOk() ){
-            res.value().forEach(
+            var tokens = res.value();
+            tokens.forEach(
                     token -> System.out.println("-> " + token)
+            );
+            var expr = Parser.parse( tokens );
+            System.out.println(
+                    new AstPrinter().print( expr )
             );
         } else
             System.out.printf("Error: %s\n", res.error());

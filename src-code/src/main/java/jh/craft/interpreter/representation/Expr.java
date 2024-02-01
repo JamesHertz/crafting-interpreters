@@ -3,20 +3,43 @@ package jh.craft.interpreter.representation;
 
 import jh.craft.interpreter.scanner.Token;
 
-public abstract class Expr {
+public interface Expr {
 
-    public interface Visitor<T> {
+    interface Visitor<T> {
         T visitBinary( Binary binary );
         T visitLiteral( Literal literal );
-        T visitGroup( Group group );
+        T visitGrouping( Grouping grouping );
         T visitUnary( Unary unary );
     }
 
-    public abstract <T> T accept( Visitor<T> visitor );
-    public record Binary( Expr left, Token operator, Expr right ) {};
-    public record Literal( Object value ) {};
-    public record Group( Expr expression ) {};
-    public record Unary( Token operator, Expr expression ) {};
+    <T> T accept( Visitor<T> visitor );
+
+    record Binary( Expr left, Token operator, Expr right ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitBinary( this );
+        }
+    }
+
+    record Literal( Object value ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitLiteral( this );
+        }
+    }
+
+    record Grouping( Expr expression ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitGrouping( this );
+        }
+    }
+
+    record Unary( Token operator, Expr expression ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitUnary( this );
+        }
+    }
 
 }
-
