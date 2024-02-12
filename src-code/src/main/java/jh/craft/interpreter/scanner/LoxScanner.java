@@ -1,11 +1,12 @@
 package jh.craft.interpreter.scanner;
 
+import jh.craft.interpreter.errors.LoxError;
+import jh.craft.interpreter.errors.LoxErrorReporter;
 import jh.craft.interpreter.errors.ParsingError;
-import jh.craft.interpreter.errors.ParsingException;
 
 import java.util.*;
 
-class TextScanner {
+public class LoxScanner {
 
     private final Map<String, TokenType> keywords = new HashMap<>(){{
         put("and", TokenType.AND);
@@ -27,13 +28,15 @@ class TextScanner {
         put("while", TokenType.WHILE);
     }};
 
-    private final String source;
+    private final String sourceCode;
+    private final LoxErrorReporter reporter;
     private int line;
     private int start;
     private int current;
 
-    public TextScanner(String source){
-        this.source = source;
+    public LoxScanner(String sourceCode, LoxErrorReporter reporter){
+        this.reporter = reporter;
+        this.sourceCode = sourceCode;
 
         this.line    = 0;
         this.start   = 0;
@@ -41,10 +44,24 @@ class TextScanner {
     }
 
     public boolean hasNext(){
-        return current < source.length();
+        return current < sourceCode.length();
     }
 
-    public Optional<Token> scanToken(){
+    public List<Token> getTokens(){
+        List<Token> tokens = new ArrayList<>();
+        while(this.hasNext()){
+            var token = this.nextToken();
+            token.ifPresent(tokens::add);
+        }
+
+        tokens.add(
+                this.nextToken().orElseThrow()
+        );
+        return tokens;
+    }
+
+
+    private Optional<Token> nextToken(){
         char value  = this.advance();
         Token token = switch ( value ) {
             // basic signs
@@ -100,7 +117,8 @@ class TextScanner {
                 if( this.isDigit( value ) )
                     yield scanNumber();
 
-                throw this.error( "Unexpected symbol" );
+                this.reportError( "Unexpected symbol" );
+                yield null;
             }
 
         };
@@ -110,22 +128,23 @@ class TextScanner {
     }
 
 
+
     // methods used to scan next characters
     private char peek(){
         if( !this.hasNext() ) return '\0';
-        return source.charAt( current );
+        return sourceCode.charAt( current );
     }
 
     private char peekNext(){
-        if( current + 1 >= source.length() )
+        if( current + 1 >= sourceCode.length() )
             return '\0';
-        return source.charAt( current + 1);
+        return sourceCode.charAt( current + 1);
     }
 
 
     private char advance(){
         if( !this.hasNext() ) return '\0';
-        return source.charAt( current++ );
+        return sourceCode.charAt( current++ );
     }
 
 
@@ -142,8 +161,10 @@ class TextScanner {
             do{
                 next = advance();
                 if(next == '\n') line++;
-                if (next == '\0')
-                    throw this.error( "Unended comment. Missing '*/'");
+                if (next == '\0'){
+                    this.reportError( "Unended comment. Missing '*/'");
+                    return null;
+                }
             }while( next != '*' || !match('/') );
 
         } else {
@@ -160,10 +181,13 @@ class TextScanner {
         }while(value != '"' && value != '\0');
 
         if(value == '\0'){
-            throw this.error( "Unfinished string. Missing a '\"'" );
+            this.reportError(
+                    "Unfinished string. Missing a '\"'"
+            );
+            return null;
         }
 
-        var stringValue = source.substring(start + 1, current-1);
+        var stringValue = sourceCode.substring(start + 1, current-1);
         return createToken(TokenType.STRING, stringValue);
     }
 
@@ -172,7 +196,7 @@ class TextScanner {
             current++;
         }
 
-        var word = source.substring( start, current );
+        var word = sourceCode.substring( start, current );
         return this.createToken(
                 keywords.getOrDefault(word, TokenType.IDENTIFIER)
         );
@@ -190,14 +214,15 @@ class TextScanner {
 
         try{
 
-            var value = source.substring(start, current);
+            var value = sourceCode.substring(start, current);
             return createToken(
                     TokenType.NUMBER, Double.parseDouble( value )
             );
         }catch (NumberFormatException ex){
-            throw this.error(
+            this.reportError(
                     "Number out of range: %s", ex.getMessage()
             );
+            return null;
         }
     }
 
@@ -206,7 +231,7 @@ class TextScanner {
     }
 
     private Token createToken(TokenType type, Object literal){
-        var lexeme = source.substring(start, current);
+        var lexeme = sourceCode.substring(start, current);
         return new Token(
                 type, lexeme, literal, line, current - 1
         );
@@ -214,9 +239,10 @@ class TextScanner {
 
 
     // My shaky way of dealing with errors
-    private ParsingException error(String fmt, Object ...args){
-        return new ParsingException(
+    private void reportError(String fmt, Object ...args){
+        reporter.error(new LoxError(
                 line, current - 1, String.format(fmt, args)
+           )
         );
     }
 

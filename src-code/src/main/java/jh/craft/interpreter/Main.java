@@ -3,13 +3,8 @@
  */
 package jh.craft.interpreter;
 
-import jh.craft.interpreter.core.Interpreter;
-import jh.craft.interpreter.core.Parser;
-import jh.craft.interpreter.errors.ParsingError;
-import jh.craft.interpreter.representation.AstPrinter;
-import jh.craft.interpreter.representation.Expr;
-import jh.craft.interpreter.scanner.Scanner;
-import jh.craft.interpreter.utils.Utils;
+import jh.craft.interpreter.core.Lox;
+import jh.craft.interpreter.errors.LoxError;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -34,13 +29,17 @@ public class Main {
                 new InputStreamReader( System.in )
         );
 
-        String line = null;
+        var ref = new Object() {
+            String line = null;
+        };
+
+        var lox = new Lox( error -> printError(error, ref.line) );
         try {
             for(;;){
                 System.out.print("> ");
-                line = reader.readLine();
-                if( line == null) break;
-                run(line);
+                ref.line = reader.readLine();
+                if( ref.line == null) break;
+                lox.run( ref.line );
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -49,8 +48,11 @@ public class Main {
 
     private static void runFile(String filename){
         try {
-            var source = Files.readString(Path.of(filename));
-            run( source );
+            final var source = Files.readString(Path.of(filename));
+            // runs the code c:
+            new Lox( error -> {
+                printError(error, source );
+            }).run( source );
         } catch (IOException e) {
             System.out.printf(
                     "Error reading '%s': %s\n", filename, e.getMessage()
@@ -60,41 +62,8 @@ public class Main {
 
     }
 
-
-    private static void run(String text){
-        var res = Scanner.scanTokens(text);
-
-        if(!res.isOk()){
-            Main.error( res.error(), text );
-            return;
-        }
-
-        var tokens = res.value();
-        tokens.forEach(
-                token -> System.out.println("-> " + token)
-        );
-
-        var expr = Parser.parse( tokens );
-        if( !expr.isOk() ){
-            Main.error( expr.error(), text );
-            return;
-        }
-        System.out.println(
-                new AstPrinter().print( expr.value() )
-        );
-
-        var aux = Interpreter.evaluate( expr.value() );
-        if( aux.isOk() )
-            System.out.println( Utils.stringify(aux) );
-        else
-            Main.error( aux.error(), text );
-
-    }
-
-
-
-    public static void error(ParsingError error, String source){
-        int lineStart = error.position();
+    private static void printError(LoxError error, String source){
+        int lineStart = error.position;
         int lineEnd   = lineStart + 1;
 
         while( lineStart >= 0 && source.charAt( lineStart ) != '\n')
@@ -108,16 +77,16 @@ public class Main {
         //     The one that will have the line
         //     number and the line from the source code.
         // )
-        String indication = String.format("\t %d | ", error.line());
+        String indication = String.format("\t %d | ", error.line);
         String errLine   =  indication + source.substring(lineStart + 1, lineEnd);
 
         // Calculating the number of spaces needed for ^ to be right below
         // the character where the error happened
-        int errOffset = error.position() - lineStart + indication.length() - 2;
+        int errOffset = error.position - lineStart + indication.length() - 2;
         String spaces = String.format("\t%" + errOffset + "s", "");
 
         // Building the final String ...
-        System.out.printf("Error: %s: \n%s\n%s^-- Here.\n", error.msg(), errLine, spaces);
+        System.out.printf("Error: %s: \n%s\n%s^-- Here.\n", error.msg, errLine, spaces);
     }
 
 }

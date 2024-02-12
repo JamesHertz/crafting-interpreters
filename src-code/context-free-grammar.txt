@@ -1,0 +1,20 @@
+# TODO: rename this to reflect the real grammar name
+# Here I list the context free grammar for the java
+# implementation of the Lox programming Language in
+# Backus–Naur form (BNF).
+
+program   => statement* "EOF" ;
+
+statement => printStmt | exprStmt;
+
+printStmt =>  "print" expression ";" ;
+exprStmt  =>  expression ";" ;
+
+statement  => equality ;
+equality   => comparison ( ( "==" | "!=" ) equality )* ;
+comparison => term ( ( ">"| ">=" | "<"| "<=" ) comparison )* ;
+term   => factor ( ( "+" | "-" ) term )* ;
+factor => unary ( ( "*" | "/" ) factor )* ;
+
+unary   => primary | ( "-" | "!" ) unary ;
+primary => "(" expression ")" | NUMBER | STRING ;

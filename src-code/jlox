@@ -1,10 +1,12 @@
 #! /usr/bin/env sh
 
+set -e
 # BY NOW!!
 case "$1" in
     -b|--build)
         echo "-> building jlox"
-        ./gradlew build || exit 1 # -q examples:build
+        ./gradlew build
+        ./scripts/ast_generator.py
         shift
     ;;
 esac

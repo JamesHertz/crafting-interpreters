@@ -1,19 +1,17 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.ParsingError;
-import jh.craft.interpreter.errors.ParsingException;
-import jh.craft.interpreter.errors.Result;
+import jh.craft.interpreter.errors.LoxError;
 import jh.craft.interpreter.representation.Expr;
+import jh.craft.interpreter.representation.Stmt;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.utils.Utils;
 
-import java.util.Optional;
+import java.util.List;
 
 public class Interpreter implements Expr.Visitor<Object> {
 
-    private static final Interpreter INTER = new Interpreter();
 
-    private Interpreter(){}
+    public Interpreter(){}
 
     public Object eval(Expr expr){
         return expr.accept( this );
@@ -66,7 +64,7 @@ public class Interpreter implements Expr.Visitor<Object> {
 
             case SLASH -> {
                 checkNumberOperands(op, left, right);
-                yield (double) right / (double) left;
+                yield (double) left / (double) right;
             }
 
             default -> {
@@ -81,7 +79,7 @@ public class Interpreter implements Expr.Visitor<Object> {
         var op = unary.operator();
         var value = unary.expression().accept( this );
         return switch (op.type()){
-            case BANG -> ! isTrue( value );
+            case BANG -> ! isTruly( value );
             case MINUS -> {
                checkNumberOperands(op, value);
                yield  - (double) value;
@@ -98,7 +96,7 @@ public class Interpreter implements Expr.Visitor<Object> {
         else return fst.equals(snd);
     }
 
-    public boolean isTrue(Object value){
+    public boolean isTruly(Object value){
         if( value == null ) return false;
         else if( value instanceof  Boolean ) return (Boolean) value;
         else return true;
@@ -115,18 +113,21 @@ public class Interpreter implements Expr.Visitor<Object> {
     }
 
 
-    public ParsingException error(Token token, String msg){
-        return new ParsingException(
+    public LoxError error(Token token, String msg){
+        return new LoxError(
                 token.line(), token.position(), msg
         );
     }
 
-
-    public static Result<Object, ParsingError> evaluate(Expr expr){
-        try{
-            return Result.ok( INTER.eval(expr) );
-        }catch (ParsingException ex){
-            return Result.error( ex.getError() );
-        }
+    public Object interpret(List<Stmt> statements){
+        return null;
     }
+
+//    public static Result<Object, ParsingError> evaluate(Expr expr){
+//        try{
+//            return Result.ok( INTER.eval(expr) );
+//        }catch (ParsingException ex){
+//            return Result.error( ex.getError() );
+//        }
+//    }
 }

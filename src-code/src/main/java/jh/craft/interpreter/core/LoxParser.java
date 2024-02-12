@@ -1,29 +1,43 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.ParsingError;
-import jh.craft.interpreter.errors.ParsingException;
-import jh.craft.interpreter.errors.Result;
+import jh.craft.interpreter.errors.*;
 import jh.craft.interpreter.representation.Expr;
+import jh.craft.interpreter.representation.Stmt;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.scanner.TokenType;
 
 import static jh.craft.interpreter.scanner.TokenType.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public class Parser {
+public class LoxParser {
 
-    // TODO: ADD NICE ERRORS HANDLING c:
     private final List<Token> tokens;
+    private final LoxErrorReporter reporter;
     private int current;
 
-    public Parser(List<Token> tokens){
+    public LoxParser(List<Token> tokens, LoxErrorReporter reporter){
         this.tokens = tokens;
+        this.reporter = reporter;
         this.current = 0;
     }
 
-    public Expr parse(){
-        return expression();
+    public List<Stmt> parse(){
+        var stmts = new ArrayList<Stmt>();
+        while(!isAtEnd()){
+            try{
+                stmts.add( statement() );
+            }catch (LoxError error){
+                reporter.error(error);
+                break; // by now c:
+            }
+        }
+        return stmts;
+    }
+
+    private Stmt statement(){
+        return null;
     }
 
     private Expr expression(){
@@ -109,9 +123,9 @@ public class Parser {
         };
     }
 
-    public ParsingException error(String msg){
+    public LoxError error(String msg){
         var token = previous();
-        return new ParsingException(
+        return new LoxError(
                 token.line(), token.position(), msg
         );
     }
@@ -145,16 +159,5 @@ public class Parser {
     private Token previous(){
         return tokens.get( current - 1 );
     }
-
-
-    public static Result<Expr, ParsingError> parse(List<Token> tokens){
-        try{
-            var aux = new Parser(tokens);
-            return Result.ok( aux.parse() );
-        } catch (ParsingException ex){
-            return Result.error( ex.getError() );
-        }
-    }
-
 
 }
