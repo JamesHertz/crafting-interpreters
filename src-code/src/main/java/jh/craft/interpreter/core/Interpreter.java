@@ -1,6 +1,7 @@
 package jh.craft.interpreter.core;
 
 import jh.craft.interpreter.errors.LoxError;
+import jh.craft.interpreter.errors.LoxErrorReporter;
 import jh.craft.interpreter.representation.Expr;
 import jh.craft.interpreter.representation.Stmt;
 import jh.craft.interpreter.scanner.Token;
@@ -8,13 +9,20 @@ import jh.craft.interpreter.utils.Utils;
 
 import java.util.List;
 
-public class Interpreter implements Expr.Visitor<Object> {
+public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
+    private final LoxErrorReporter reporter;
+    public Interpreter(LoxErrorReporter reporter){
+        this.reporter = reporter;
+    }
 
-    public Interpreter(){}
-
-    public Object eval(Expr expr){
-        return expr.accept( this );
+    public void interpret(List<Stmt> statements){
+        try{
+            for( var stmt : statements )
+                stmt.accept(this);
+        }catch (LoxError error){
+            reporter.error( error );
+        }
     }
 
     @Override
@@ -113,21 +121,26 @@ public class Interpreter implements Expr.Visitor<Object> {
     }
 
 
-    public LoxError error(Token token, String msg){
+    private LoxError error(Token token, String msg){
         return new LoxError(
                 token.line(), token.position(), msg
         );
     }
 
-    public Object interpret(List<Stmt> statements){
+    @Override
+    public Void visitExpression(Stmt.Expression expression) {
+        // TODO: add a listener for when we are in REPL mode
+        expression.expression().accept(this);
         return null;
     }
 
-//    public static Result<Object, ParsingError> evaluate(Expr expr){
-//        try{
-//            return Result.ok( INTER.eval(expr) );
-//        }catch (ParsingException ex){
-//            return Result.error( ex.getError() );
-//        }
-//    }
+    @Override
+    public Void visitPrint(Stmt.Print print) {
+        var result = print.expression().accept( this );
+        System.out.println(
+                Utils.stringifyValue( result )
+        );
+        return null;
+    }
+
 }

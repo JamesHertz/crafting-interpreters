@@ -30,14 +30,33 @@ public class LoxParser {
                 stmts.add( statement() );
             }catch (LoxError error){
                 reporter.error(error);
-                break; // by now c:
+                synchronize();
             }
         }
         return stmts;
     }
 
     private Stmt statement(){
-        return null;
+        if(match(PRINT)) return printStatement();
+        return expressionStatement();
+    }
+
+    private Stmt printStatement(){
+        var statement = new Stmt.Print(
+                expression()
+        );
+
+        consume(SEMICOLON, "Expected ';' after expression.");
+        return statement;
+    }
+
+    private Stmt expressionStatement(){
+        var statement = new Stmt.Expression(
+                expression()
+        );
+
+        consume(SEMICOLON, "Expected ';' after expression.");
+        return statement;
     }
 
     private Expr expression(){
@@ -144,6 +163,43 @@ public class LoxParser {
         return false;
     }
 
+    // The idea is to skip enough tokens until we
+    // get to a token that starts a new statement
+    // this way we can report several syntax errors
+    // at once.
+    private void synchronize(){
+        advance(); // skip error token c:
+
+        while(!isAtEnd()){
+            if(previous().type() == SEMICOLON )
+                return;
+
+            switch (peek().type()){
+                case CLASS:
+                case IF:
+                case VAR:
+                case FOR:
+                case WHILE:
+                case FUN:
+                case PRINT:
+                case RETURN:
+                    return;
+            }
+
+            advance();
+        }
+    }
+
+    private void consume(TokenType type, String msg){
+        var token = peek();
+        if( token.type() != type ){
+            throw new LoxError(
+                    token.line(), token.position(), msg
+            );
+        }
+        advance();
+    }
+
     private boolean isAtEnd(){
         return peek().type() == EOF;
     }
@@ -153,7 +209,8 @@ public class LoxParser {
     }
 
     private Token advance(){
-        return tokens.get(current++);
+        if(!isAtEnd()) current++;
+        return previous();
     }
 
     private Token previous(){

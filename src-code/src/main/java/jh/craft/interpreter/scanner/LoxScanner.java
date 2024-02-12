@@ -2,7 +2,6 @@ package jh.craft.interpreter.scanner;
 
 import jh.craft.interpreter.errors.LoxError;
 import jh.craft.interpreter.errors.LoxErrorReporter;
-import jh.craft.interpreter.errors.ParsingError;
 
 import java.util.*;
 

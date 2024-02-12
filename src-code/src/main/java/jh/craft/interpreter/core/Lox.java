@@ -15,7 +15,7 @@ public class Lox {
             reporter.error( error );
         };
         this.hasError = false;
-        this.interpreter = new Interpreter();
+        this.interpreter = new Interpreter( this.reporter );
     }
 
 

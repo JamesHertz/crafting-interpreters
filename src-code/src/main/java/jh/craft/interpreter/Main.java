@@ -86,7 +86,7 @@ public class Main {
         String spaces = String.format("\t%" + errOffset + "s", "");
 
         // Building the final String ...
-        System.out.printf("Error: %s: \n%s\n%s^-- Here.\n", error.msg, errLine, spaces);
+        System.out.printf("Error: %s\n%s\n%s^-- Here.\n", error.msg, errLine, spaces);
     }
 
 }
