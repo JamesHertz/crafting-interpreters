@@ -52,12 +52,14 @@ def main():
         'Binary'   : 'Expr left, Token operator, Expr right',
         'Literal'  : 'Object value',
         'Grouping' : 'Expr expression',
-        'Unary'    : 'Token operator, Expr expression'
+        'Unary'    : 'Token operator, Expr expression',
+        'Variable' : 'Token name'
     })
-
-    define_ast('Stmt', {
+    
+    define_ast('Stmt',{
         'Expression' : 'Expr expression',
-        'Print'      : 'Expr expression'
+        'Print'      : 'Expr expression',
+        'Var'        : 'Token name, Expr initializer'
     })
 
 

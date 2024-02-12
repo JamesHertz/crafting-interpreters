@@ -3,9 +3,12 @@
 # implementation of the Lox programming Language in
 # Backus–Naur form (BNF).
 
-program   => statement* "EOF" ;
+program     => declaration* "EOF" ;
+declaration => varDecl | statement ;
 
-statement => printStmt | exprStmt;
+varDecl => "var" IDENTIFIER ( "=" expression )? ";" ;
+
+statement => printStmt | exprStmt ;
 
 printStmt =>  "print" expression ";" ;
 exprStmt  =>  expression ";" ;
@@ -17,4 +20,5 @@ term   => factor ( ( "+" | "-" ) term )* ;
 factor => unary ( ( "*" | "/" ) factor )* ;
 
 unary   => primary | ( "-" | "!" ) unary ;
-primary => "(" expression ")" | NUMBER | STRING ;
+primary => "(" expression ")" | "false" | "true" 
+           | "nil" | NUMBER | STRING | IDENTIFIER ;

@@ -27,7 +27,7 @@ public class LoxParser {
         var stmts = new ArrayList<Stmt>();
         while(!isAtEnd()){
             try{
-                stmts.add( statement() );
+                stmts.add( declaration() );
             }catch (LoxError error){
                 reporter.error(error);
                 synchronize();
@@ -35,6 +35,26 @@ public class LoxParser {
         }
         return stmts;
     }
+
+    private Stmt declaration(){
+        if(match(VAR)) return varDecl();
+        return statement();
+    }
+
+
+    private Stmt varDecl(){
+        consume(IDENTIFIER, "Expected an variable indentifier");
+        var name = previous();
+
+        Expr initializer = null;
+        if(match(EQUAL)) 
+            initializer = expression();
+
+        consume(SEMICOLON, "Expected ';' after value.");
+
+        return new Stmt.Var( name, initializer );
+    }
+
 
     private Stmt statement(){
         if(match(PRINT)) return printStatement();
@@ -136,6 +156,7 @@ public class LoxParser {
                 }
                 throw error("Expected ')' :c");
             }
+            case IDENTIFIER -> new Expr.Variable( token );
             default -> {
                 throw error("Expected an expression :c");
             }
@@ -153,7 +174,6 @@ public class LoxParser {
         if( isAtEnd() )  // by now c:
             return false;
 
-        var expr = peek();
         for( var t : types ){
             if( peek().type() == t ){
                 advance();

@@ -10,6 +10,7 @@ public interface Expr {
         T visitLiteral( Literal literal );
         T visitGrouping( Grouping grouping );
         T visitUnary( Unary unary );
+        T visitVariable( Variable variable );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -39,6 +40,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitUnary( this );
+        }
+    }
+
+    record Variable( Token name ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitVariable( this );
         }
     }
 

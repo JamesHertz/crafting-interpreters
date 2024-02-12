@@ -12,9 +12,12 @@ import java.util.List;
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private final LoxErrorReporter reporter;
+    private final Environment env;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
+        this.env = new Environment();
     }
+
 
     public void interpret(List<Stmt> statements){
         try{
@@ -98,6 +101,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         };
     }
 
+    @Override
+    public Object visitVariable(Expr.Variable variable) {
+        var name = variable.name();
+        return env.value( name );
+    }
 
     public boolean isEqual(Object fst, Object snd){
         if(fst == null) return snd == null;
@@ -140,6 +148,13 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         System.out.println(
                 Utils.stringifyValue( result )
         );
+        return null;
+    }
+
+    @Override
+    public Void visitVar(Stmt.Var var) {
+        var value = var.initializer().accept( this );
+        env.initialize( var.name(), value );
         return null;
     }
 

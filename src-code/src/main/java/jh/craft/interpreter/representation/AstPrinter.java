@@ -34,4 +34,9 @@ public class AstPrinter implements Expr.Visitor<String>{
         var exp = unary.expression().accept(this);
         return String.format("%s(%s)", op.lexeme(), exp);
     }
+
+    @Override
+    public String visitVariable(Expr.Variable variable) {
+        return null;
+    }
 }
