@@ -58,7 +58,19 @@ public class LoxParser {
 
     private Stmt statement(){
         if(match(PRINT)) return printStatement();
+        if(match(LEFT_BRACE)) return blockStatement();
         return expressionStatement();
+    }
+
+    private Stmt blockStatement(){
+        List<Stmt> body = new ArrayList<>();
+        while( !isAtEnd() && !check(RIGHT_BRACE) ){
+            body.add( declaration() );
+        }
+
+        consume(RIGHT_BRACE, "Expected a '}'.");
+
+        return new Stmt.Block( body );
     }
 
     private Stmt printStatement(){
@@ -80,8 +92,27 @@ public class LoxParser {
     }
 
     private Expr expression(){
-        return equality();
+        return assigment();
     }
+
+    private Expr assigment(){
+        var expr = equality();
+        if(match(EQUAL)){
+            if( !(expr instanceof Expr.Variable variable) ){
+                var token = this.previous();
+                throw new LoxError(
+                        token, "Expected a identifier at the left side of an assigment."
+                );
+            }
+
+            expr = new Expr.Assign(
+                    variable.name(), equality()
+            );
+        }
+
+        return expr;
+    }
+
 
     private Expr equality(){
         var expr = comparison();
@@ -171,16 +202,19 @@ public class LoxParser {
     }
 
     public boolean match(TokenType...types){
-        if( isAtEnd() )  // by now c:
-            return false;
-
         for( var t : types ){
-            if( peek().type() == t ){
+            if( check(t) ){
                 advance();
                 return true;
             }
         }
         return false;
+    }
+
+    public boolean check(TokenType type){
+        if( isAtEnd() )
+            return false;
+        return peek().type() == type;
     }
 
     // The idea is to skip enough tokens until we

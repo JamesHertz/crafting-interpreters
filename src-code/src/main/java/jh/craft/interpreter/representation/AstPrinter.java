@@ -39,4 +39,9 @@ public class AstPrinter implements Expr.Visitor<String>{
     public String visitVariable(Expr.Variable variable) {
         return null;
     }
+
+    @Override
+    public String visitAssign(Expr.Assign assign) {
+        return null;
+    }
 }

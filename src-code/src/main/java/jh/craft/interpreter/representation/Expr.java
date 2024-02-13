@@ -2,6 +2,7 @@
 package jh.craft.interpreter.representation;
 
 import jh.craft.interpreter.scanner.Token;
+import java.util.List;
 
 public interface Expr {
 
@@ -11,6 +12,7 @@ public interface Expr {
         T visitGrouping( Grouping grouping );
         T visitUnary( Unary unary );
         T visitVariable( Variable variable );
+        T visitAssign( Assign assign );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -47,6 +49,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitVariable( this );
+        }
+    }
+
+    record Assign( Token name, Expr value ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitAssign( this );
         }
     }
 

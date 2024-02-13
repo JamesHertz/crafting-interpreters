@@ -7,25 +7,30 @@ import jh.craft.interpreter.representation.Stmt;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.utils.Utils;
 
+import javax.print.attribute.HashPrintServiceAttributeSet;
 import java.util.List;
 
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private final LoxErrorReporter reporter;
-    private final Environment env;
+    private Environment currentEnv;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
-        this.env = new Environment();
+        this.currentEnv = new Environment();
     }
 
 
     public void interpret(List<Stmt> statements){
         try{
-            for( var stmt : statements )
-                stmt.accept(this);
+            execute(statements);
         }catch (LoxError error){
             reporter.error( error );
         }
+    }
+
+    private void execute(List<Stmt> statements){
+        for( var stmt : statements )
+            stmt.accept(this);
     }
 
     @Override
@@ -41,8 +46,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitBinary(Expr.Binary binary) {
-        var right = binary.right().accept( this );
         var left  = binary.left().accept( this );
+        var right = binary.right().accept( this );
         var op = binary.operator();
 
         return switch (op.type()){
@@ -56,7 +61,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 if( right instanceof String && left instanceof String)
                     yield (String) left + (String) right;
 
-                throw this.error( op, String.format(
+                throw new LoxError( op, String.format(
                     "Expected either two strings or two number but got: %s and %s",
                     Utils.stringify(left), Utils.stringify(right)
                 ));
@@ -104,7 +109,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitVariable(Expr.Variable variable) {
         var name = variable.name();
-        return env.value( name );
+        return currentEnv.value( name );
+    }
+
+    @Override
+    public Object visitAssign(Expr.Assign assign) {
+        var value = assign.value().accept( this );
+        currentEnv.assign(
+                assign.name(), value
+        );
+        return null;
     }
 
     public boolean isEqual(Object fst, Object snd){
@@ -122,17 +136,10 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public void checkNumberOperands(Token operator, Object ...values){
         for( var val : values )
             if(!( val instanceof Double)){
-                throw this.error(
+                throw new LoxError(
                         operator, String.format("Expected a number but found: %s", Utils.stringify( val ) )
                 );
             }
-    }
-
-
-    private LoxError error(Token token, String msg){
-        return new LoxError(
-                token.line(), token.position(), msg
-        );
     }
 
     @Override
@@ -154,7 +161,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitVar(Stmt.Var var) {
         var value = var.initializer().accept( this );
-        env.initialize( var.name(), value );
+        currentEnv.initialize( var.name(), value );
+        return null;
+    }
+
+    @Override
+    public Void visitBlock(Stmt.Block block) {
+        var previous = currentEnv;
+        this.currentEnv = new Environment( previous );
+        execute( block.body() );
+        this.currentEnv = previous;
         return null;
     }
 

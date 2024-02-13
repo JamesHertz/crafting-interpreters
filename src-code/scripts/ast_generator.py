@@ -13,6 +13,7 @@ def generate_classes( baseclass: str, classes : Dict[str, str] ) :
 package jh.craft.interpreter.representation;
 
 import jh.craft.interpreter.scanner.Token;
+import java.util.List;
 
 public interface {baseclass} {{
 
@@ -53,13 +54,15 @@ def main():
         'Literal'  : 'Object value',
         'Grouping' : 'Expr expression',
         'Unary'    : 'Token operator, Expr expression',
-        'Variable' : 'Token name'
+        'Variable' : 'Token name',
+        'Assign'   : 'Token name, Expr value'
     })
     
-    define_ast('Stmt',{
+    define_ast('Stmt', {
         'Expression' : 'Expr expression',
         'Print'      : 'Expr expression',
-        'Var'        : 'Token name, Expr initializer'
+        'Var'        : 'Token name, Expr initializer',
+        'Block'      : 'List<Stmt> body'
     })
 
 

@@ -1,5 +1,7 @@
 package jh.craft.interpreter.errors;
 
+import jh.craft.interpreter.scanner.Token;
+
 public class LoxError extends RuntimeException{
     public final int line;
     public final int position;
@@ -9,5 +11,9 @@ public class LoxError extends RuntimeException{
         this.line = line;
         this.position = position;
         this.msg = msg;
+    }
+
+    public LoxError(Token token, String msg){
+        this(token.line(), token.position(), msg);
     }
 }

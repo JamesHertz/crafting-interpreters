@@ -2,6 +2,7 @@
 package jh.craft.interpreter.representation;
 
 import jh.craft.interpreter.scanner.Token;
+import java.util.List;
 
 public interface Stmt {
 
@@ -9,6 +10,7 @@ public interface Stmt {
         T visitExpression( Expression expression );
         T visitPrint( Print print );
         T visitVar( Var var );
+        T visitBlock( Block block );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -31,6 +33,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitVar( this );
+        }
+    }
+
+    record Block( List<Stmt> body ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitBlock( this );
         }
     }
 

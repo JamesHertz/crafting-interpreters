@@ -4,16 +4,23 @@
 # Backus–Naur form (BNF).
 
 program     => declaration* "EOF" ;
-declaration => varDecl | statement ;
 
+# declarations
+declaration => varDecl | statement ;
 varDecl => "var" IDENTIFIER ( "=" expression )? ";" ;
 
-statement => printStmt | exprStmt ;
 
+# statements
+statement => printStmt | exprStmt | blockStmt ;
+
+blockStmt => "{" declaration* "}" ;
 printStmt =>  "print" expression ";" ;
 exprStmt  =>  expression ";" ;
 
-statement  => equality ;
+# expressions c:
+expression => assigment ;
+assigment => IDENTIFIER "=" assigment | equality ;
+
 equality   => comparison ( ( "==" | "!=" ) equality )* ;
 comparison => term ( ( ">"| ">=" | "<"| "<=" ) comparison )* ;
 term   => factor ( ( "+" | "-" ) term )* ;
