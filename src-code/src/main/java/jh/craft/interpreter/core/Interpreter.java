@@ -5,9 +5,9 @@ import jh.craft.interpreter.errors.LoxErrorReporter;
 import jh.craft.interpreter.representation.Expr;
 import jh.craft.interpreter.representation.Stmt;
 import jh.craft.interpreter.scanner.Token;
+import jh.craft.interpreter.scanner.TokenType;
 import jh.craft.interpreter.utils.Utils;
 
-import javax.print.attribute.HashPrintServiceAttributeSet;
 import java.util.List;
 
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
@@ -50,39 +50,38 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         var right = binary.right().accept( this );
         var op = binary.operator();
 
-        return switch (op.type()){
-            case EQUAL_EQUAL -> isEqual(left, right);
-            case BANG_EQUAL  -> !isEqual(left, right);
+        if(op.type() == TokenType.EQUAL_EQUAL)
+            return isEqual(left, right);
 
-            case PLUS -> {
-                if( right instanceof Double && left instanceof Double)
-                    yield (double) left + (double) right;
+        if(op.type() == TokenType.BANG_EQUAL)
+            return !isEqual(left, right);
 
-                if( right instanceof String && left instanceof String)
-                    yield (String) left + (String) right;
+        if(op.type() == TokenType.PLUS) {
+            if (right instanceof Double && left instanceof Double)
+                return (double) left + (double) right;
 
-                throw new LoxError( op, String.format(
+            if (right instanceof String && left instanceof String)
+                return (String) left + (String) right;
+
+            throw new LoxError(op, String.format(
                     "Expected either two strings or two number but got: %s and %s",
                     Utils.stringify(left), Utils.stringify(right)
-                ));
+            ));
 
-            }
+        }
 
-            case MINUS -> {
-                checkNumberOperands(op, left, right);
-                yield (double) left - (double) right;
-            }
+        checkNumberOperands(op, left, right);
+        var rightNr = (Double) right;
+        var leftNr  = (Double) left;
 
-            case STAR -> {
-                checkNumberOperands(op, left, right);
-                yield (double) left * (double) right;
-            }
-
-            case SLASH -> {
-                checkNumberOperands(op, left, right);
-                yield (double) left / (double) right;
-            }
-
+        return switch (op.type()){
+            case MINUS   -> leftNr - rightNr;
+            case STAR    -> leftNr * rightNr;
+            case SLASH   -> leftNr / rightNr;
+            case GREATER -> leftNr > rightNr;
+            case GREATER_EQUAL -> leftNr >= rightNr;
+            case LESS -> leftNr < rightNr;
+            case LESS_EQUAL -> leftNr <= rightNr;
             default -> {
                 throw new RuntimeException("Unreachable");
             }
@@ -171,6 +170,17 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         this.currentEnv = new Environment( previous );
         execute( block.body() );
         this.currentEnv = previous;
+        return null;
+    }
+
+    @Override
+    public Void visitIfStmt(Stmt.IfStmt ifStmt) {
+        var condition = ifStmt.condition().accept( this );
+        if( isTruly(condition) )
+            ifStmt.body().accept(this);
+        else if( ifStmt.elseStmt() != null )
+            ifStmt.elseStmt().accept( this );
+
         return null;
     }
 

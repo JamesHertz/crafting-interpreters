@@ -11,6 +11,7 @@ public interface Stmt {
         T visitPrint( Print print );
         T visitVar( Var var );
         T visitBlock( Block block );
+        T visitIfStmt( IfStmt ifstmt );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -40,6 +41,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitBlock( this );
+        }
+    }
+
+    record IfStmt( Expr condition, Stmt body, Stmt elseStmt ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitIfStmt( this );
         }
     }
 

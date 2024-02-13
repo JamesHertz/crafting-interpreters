@@ -62,7 +62,8 @@ def main():
         'Expression' : 'Expr expression',
         'Print'      : 'Expr expression',
         'Var'        : 'Token name, Expr initializer',
-        'Block'      : 'List<Stmt> body'
+        'Block'      : 'List<Stmt> body',
+        'IfStmt'         : 'Expr condition, Stmt body, Stmt elseStmt'
     })
 
 

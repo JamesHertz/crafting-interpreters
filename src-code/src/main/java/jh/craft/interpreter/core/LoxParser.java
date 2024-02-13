@@ -59,7 +59,19 @@ public class LoxParser {
     private Stmt statement(){
         if(match(PRINT)) return printStatement();
         if(match(LEFT_BRACE)) return blockStatement();
+        if(match(IF)) return ifStatement();
         return expressionStatement();
+    }
+
+    private Stmt ifStatement(){
+        consume(LEFT_PAREN, "Expected '(' after if.");
+        var condition = expression();
+        consume(RIGHT_PAREN, "Expected ')'.");
+        var body = statement();
+
+        return new Stmt.IfStmt(
+                condition, body, match(ELSE) ? statement() : null
+        );
     }
 
     private Stmt blockStatement(){
@@ -69,7 +81,6 @@ public class LoxParser {
         }
 
         consume(RIGHT_BRACE, "Expected a '}'.");
-
         return new Stmt.Block( body );
     }
 
