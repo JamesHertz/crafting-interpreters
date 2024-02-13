@@ -43,7 +43,7 @@ public class LoxParser {
 
 
     private Stmt varDecl(){
-        consume(IDENTIFIER, "Expected an variable indentifier");
+        consume(IDENTIFIER, "Expected an variable identifier");
         var name = previous();
 
         Expr initializer = null;
