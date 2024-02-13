@@ -109,16 +109,18 @@ public class LoxParser {
     private Expr assigment(){
         var expr = equality();
         if(match(EQUAL)){
-            if( !(expr instanceof Expr.Variable variable) ){
-                var token = this.previous();
-                throw new LoxError(
-                        token, "Expected a identifier at the left side of an assigment."
+            var name = this.previous();
+            var value = assigment();
+
+            if(expr instanceof Expr.Variable variable ){
+                return new Expr.Assign(
+                        variable.name(), value
                 );
             }
 
-            expr = new Expr.Assign(
-                    variable.name(), equality()
-            );
+            reporter.error(new LoxError(
+                    name, "Invalid assigment target."
+            ));
         }
 
         return expr;

@@ -2,12 +2,12 @@ package jh.craft.interpreter.core;
 
 import jh.craft.interpreter.errors.LoxError;
 import jh.craft.interpreter.scanner.Token;
-import jh.craft.interpreter.scanner.TokenType;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class Environment {
+    private final Object NO_VALUE = new Object();
     private final Map<String, Object> values;
     private final Environment parent;
 
@@ -19,6 +19,9 @@ public class Environment {
         this.parent = parent;
     }
 
+    public void declare(Token name){
+        values.put( name.lexeme(), NO_VALUE );
+    }
     public void initialize(Token name, Object value){
         values.put( name.lexeme(), value );
     }
@@ -26,14 +29,19 @@ public class Environment {
     public Object value(Token name){
         var identifier = name.lexeme();
 
-        if(values.containsKey( identifier ))
-            return values.get( identifier );
+        if(values.containsKey( identifier )){
+            var value = values.get(identifier);
+            if( value == NO_VALUE )
+                throw new LoxError(
+                        name, String.format("'%s' not initialized.", identifier)
+                );
+            return value;
+        }
 
         if( parent != null ) return parent.value( name );
 
         throw new LoxError(
-                name.line(), name.position(),
-                String.format("'%s' not defined.", identifier)
+                name, String.format("'%s' not defined.", identifier)
         );
     }
 

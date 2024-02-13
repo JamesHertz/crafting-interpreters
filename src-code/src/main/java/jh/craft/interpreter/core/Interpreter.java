@@ -70,6 +70,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
         }
 
+        // TODO: add a representation token for each thing c:
         checkNumberOperands(op, left, right);
         var rightNr = (Double) right;
         var leftNr  = (Double) left;
@@ -159,8 +160,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitVar(Stmt.Var var) {
-        var value = var.initializer().accept( this );
-        currentEnv.initialize( var.name(), value );
+        var initializer = var.initializer();
+        if(initializer == null)
+            currentEnv.declare( var.name() );
+        else
+            currentEnv.initialize( var.name(), initializer.accept( this ) );
         return null;
     }
 
