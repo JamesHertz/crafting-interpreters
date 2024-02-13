@@ -107,7 +107,7 @@ public class LoxParser {
     }
 
     private Expr assigment(){
-        var expr = equality();
+        var expr = or();
         if(match(EQUAL)){
             var name = this.previous();
             var value = assigment();
@@ -126,14 +126,41 @@ public class LoxParser {
         return expr;
     }
 
+    private Expr or() {
+        var expr = and();
+
+        while(match(OR)){
+            var op = previous();
+            var right = and();
+            expr = new Expr.Logical(
+                   expr, op, right
+            );
+        }
+
+        return expr;
+    }
+
+    private Expr and() {
+        var expr = equality();
+
+        while(match(AND)){
+            var op = previous();
+            var right = equality();
+            expr = new Expr.Logical(
+                    expr, op, right
+            );
+        }
+
+        return expr;
+    }
 
     private Expr equality(){
         var expr = comparison();
 
         while(match( BANG_EQUAL, EQUAL_EQUAL )){
             var operator = previous();
-            var second = comparison();
-            expr = new Expr.Binary(expr, operator, second);
+            var right = comparison();
+            expr = new Expr.Binary(expr, operator, right);
         }
 
         return expr;

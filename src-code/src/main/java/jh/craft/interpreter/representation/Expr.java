@@ -13,6 +13,7 @@ public interface Expr {
         T visitUnary( Unary unary );
         T visitVariable( Variable variable );
         T visitAssign( Assign assign );
+        T visitLogical( Logical logical );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -56,6 +57,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitAssign( this );
+        }
+    }
+
+    record Logical( Expr left, Token operator, Expr right ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitLogical( this );
         }
     }
 

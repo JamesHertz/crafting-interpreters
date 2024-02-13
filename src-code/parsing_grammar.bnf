@@ -22,9 +22,11 @@
 <forStmt>   ::= "for" "(" ( <varDecl> | <exprStmt> | ";" )  [<expression>] ";" [<expression>] ";" ")" <statement>
 
 // expressions c:
-<expression> ::= <logical_or>
-<logical_or> ::= <logical_and> [{ "||" }]
-<assigment>    ::= IDENTIFIER "=" <assigment> | <equality>
+<expression> ::= <assigment>
+<assigment>  ::= IDENTIFIER "=" <assigment> | <logical_or>
+
+<logical_or> ::= <logical_and> {[ "||" <logical_or> ]}
+<logical_and> ::= <equality> {[ "||" <logical_and> ]}
 
 <equality> ::= <comparison> {[ ( "==" | "!=" ) <equality> ]}
 <comparison> ::= <term> {[ ( ">"| ">=" | "<"| "<=" ) <comparison> ]}

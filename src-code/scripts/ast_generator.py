@@ -55,7 +55,8 @@ def main():
         'Grouping' : 'Expr expression',
         'Unary'    : 'Token operator, Expr expression',
         'Variable' : 'Token name',
-        'Assign'   : 'Token name, Expr value'
+        'Assign'   : 'Token name, Expr value',
+        'Logical'  : 'Expr left, Token operator, Expr right',
     })
     
     define_ast('Stmt', {
@@ -63,7 +64,7 @@ def main():
         'Print'      : 'Expr expression',
         'Var'        : 'Token name, Expr initializer',
         'Block'      : 'List<Stmt> body',
-        'IfStmt'         : 'Expr condition, Stmt body, Stmt elseStmt'
+        'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
     })
 
 

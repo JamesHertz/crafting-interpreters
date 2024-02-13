@@ -121,6 +121,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    @Override
+    public Object visitLogical(Expr.Logical logical) {
+        var left = logical.left().accept( this );
+        var right = logical.right();
+        var op = logical.operator().type();
+
+        if( op == TokenType.AND )
+            return !isTruly(left) ? left : right.accept( this );
+        else
+            return isTruly(left) ? left : right.accept( this );
+    }
+
     public boolean isEqual(Object fst, Object snd){
         if(fst == null) return snd == null;
         else return fst.equals(snd);
