@@ -1,27 +1,30 @@
-// Here I list the context free grammar for the java
-// implementation of the Lox programming Language in
-// Backus–Naur form (BNF).
+// Here I list the context free grammar for the java implementation
+// of the Lox programming Language in Backus–Naur form (BNF) following
+// the rules here: https://palle-k.github.io/Covfefe/bnf.html
 // * => {[]}
 // + => {}
 // ? => []
 
-<program>  ::= {[<declaration>]} "EOF"
+<program> ::= {[<declaration>]} "EOF"
 
 // declarations
 <declaration> ::= <varDecl> | <statement>
-<varDecl> ::= "var" IDENTIFIER [ "=" <expression> ] ";";
+<varDecl>     ::= "var" IDENTIFIER [ "=" <expression> ] ";";
 
 // statements
-<statement> ::= <printStmt> | <exprStmt> | <blockStmt> | <ifStmt>
+<statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt>
 
-<ifStmt> ::= "if" "(" <expression> ")" <statement> ["else" <statement> ]
-<blockStmt> ::=  "{" declaration* "}"
-<printStmt> ::=  "print" expression ";"
 <exprStmt>  ::=  expression ";"
+<printStmt> ::=  "print" expression ";"
+<blockStmt> ::=  "{" declaration* "}"
+<ifStmt>    ::= "if" "(" <expression> ")" <statement> ["else" <statement> ]
+<whileStmt> ::= "while" "(" <expression> ")" <statement>
+<forStmt>   ::= "for" "(" ( <varDecl> | <exprStmt> | ";" )  [<expression>] ";" [<expression>] ";" ")" <statement>
 
 // expressions c:
-<expression> ::= <assigment>
-assigment ::= IDENTIFIER "=" <assigment> | <equality>
+<expression> ::= <logical_or>
+<logical_or> ::= <logical_and> [{ "||" }]
+<assigment>    ::= IDENTIFIER "=" <assigment> | <equality>
 
 <equality> ::= <comparison> {[ ( "==" | "!=" ) <equality> ]}
 <comparison> ::= <term> {[ ( ">"| ">=" | "<"| "<=" ) <comparison> ]}
@@ -33,3 +36,8 @@ assigment ::= IDENTIFIER "=" <assigment> | <equality>
            | "nil" | NUMBER | STRING | IDENTIFIER
 
 // TODO: define NUMBER, STRING and IDENTIFIER
+// NUMBER ::= { <digit> } [ "." {<digit>} ]
+// STRING ::= '"' anything except '"' '"'
+// IDENTIFIER ::= ( <alpha> | "_" ) [{ ( <alpha> | "_" | <digit> ) }]
+// <digit> ::= ....
+// <alpha> ::=
