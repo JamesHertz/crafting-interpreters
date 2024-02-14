@@ -60,13 +60,66 @@ public class LoxParser {
         if(match(PRINT)) return printStatement();
         if(match(LEFT_BRACE)) return blockStatement();
         if(match(IF)) return ifStatement();
+        if(match(WHILE)) return whileStatement();
+        if(match(FOR)) return forStatement();
         return expressionStatement();
+    }
+
+    private Stmt forStatement() {
+        consume(LEFT_PAREN, "Expected '(' after for.");
+
+        Stmt initializer = null;
+        if(match(VAR))
+            initializer = varDecl();
+        else if(!match(SEMICOLON))
+            initializer = expressionStatement();
+
+        Expr condition = null;
+        if(!check(SEMICOLON))
+            condition = expression();
+        consume(SEMICOLON, "Expected ';' after the loop condition");
+
+        Expr increment = null;
+        if(!check(RIGHT_PAREN))
+            increment = expression();
+        consume(RIGHT_PAREN, "Expected enclosing ')'.");
+
+        Stmt body = statement();
+        if( increment != null ){
+            body = new Stmt.Block(List.of(
+                    body, new Stmt.Expression( increment )
+            ));
+        }
+
+        if( condition == null )
+            condition = new Expr.Literal( true );
+
+        Stmt result = new Stmt.WhileStmt(
+               condition, body
+        );
+
+        if( initializer != null ){
+            result = new Stmt.Block(List.of(
+                    initializer, result
+            ));
+        }
+
+        return result;
+    }
+
+    private Stmt whileStatement() {
+        consume(LEFT_PAREN, "Expected '(' after while.");
+        var condition = expression();
+        consume(RIGHT_PAREN, "Expected enclosing ')'.");
+        var body = statement();
+
+        return new Stmt.WhileStmt( condition, body );
     }
 
     private Stmt ifStatement(){
         consume(LEFT_PAREN, "Expected '(' after if.");
         var condition = expression();
-        consume(RIGHT_PAREN, "Expected ')'.");
+        consume(RIGHT_PAREN, "Expected enclosing ')'.");
         var body = statement();
 
         return new Stmt.IfStmt(

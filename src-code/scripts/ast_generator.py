@@ -65,6 +65,7 @@ def main():
         'Var'        : 'Token name, Expr initializer',
         'Block'      : 'List<Stmt> body',
         'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
+        'WhileStmt'  : 'Expr condition, Stmt body',
     })
 
 

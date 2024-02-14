@@ -51,7 +51,7 @@ public class Main {
             final var source = Files.readString(Path.of(filename));
             // runs the code c:
             new Lox( error -> {
-                printError(error, source );
+                printError( error, source );
             }).run( source );
         } catch (IOException e) {
             System.out.printf(

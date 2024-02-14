@@ -196,7 +196,14 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             ifStmt.body().accept(this);
         else if( ifStmt.elseStmt() != null )
             ifStmt.elseStmt().accept( this );
+        return null;
+    }
 
+    @Override
+    public Void visitWhileStmt(Stmt.WhileStmt whileStmt) {
+        var condition = whileStmt.condition();
+        while( isTruly( condition.accept( this )) )
+            whileStmt.body().accept( this );
         return null;
     }
 

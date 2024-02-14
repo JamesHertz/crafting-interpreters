@@ -12,6 +12,7 @@ public interface Stmt {
         T visitVar( Var var );
         T visitBlock( Block block );
         T visitIfStmt( IfStmt ifstmt );
+        T visitWhileStmt( WhileStmt whilestmt );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -48,6 +49,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitIfStmt( this );
+        }
+    }
+
+    record WhileStmt( Expr condition, Stmt body ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitWhileStmt( this );
         }
     }
 
