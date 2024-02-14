@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class LoxParser {
+    private static final int MAX_PARAMETERS = 255;
 
     private final List<Token> tokens;
     private final LoxErrorReporter reporter;
@@ -38,7 +39,35 @@ public class LoxParser {
 
     private Stmt declaration(){
         if(match(VAR)) return varDecl();
+        if(match(FUN)) return funDecl();
         return statement();
+    }
+
+    private Stmt funDecl(){
+        // TODO: pay attention to the names c:
+        var name = consume(IDENTIFIER, "Expected function identifier");
+        consume(LEFT_PAREN, "Expected '(' after function identifier");
+
+        var parameters = new ArrayList<Token>();
+        do{
+            parameters.add(
+                    consume(IDENTIFIER, "Expected parameter identifier")
+            );
+        }while(!match(COMMA));
+
+        consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
+
+        if(parameters.size() > MAX_PARAMETERS){
+            reporter.error(
+                    new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " parameters")
+            );
+        }
+
+        consume(LEFT_BRACE, "Expected '}' before function body");
+        var body = blockStatement();
+        return new Stmt.Function(
+                name, parameters, blockStatement()
+        );
     }
 
 

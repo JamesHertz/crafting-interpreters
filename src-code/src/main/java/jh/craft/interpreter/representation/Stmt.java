@@ -13,6 +13,7 @@ public interface Stmt {
         T visitBlock( Block block );
         T visitIfStmt( IfStmt ifstmt );
         T visitWhileStmt( WhileStmt whilestmt );
+        T visitFunction( Function function );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -56,6 +57,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitWhileStmt( this );
+        }
+    }
+
+    record Function( Token name, List<Token> parameters, Stmt body ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitFunction( this );
         }
     }
 

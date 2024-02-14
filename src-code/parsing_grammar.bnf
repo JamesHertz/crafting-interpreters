@@ -8,8 +8,11 @@
 <program> ::= {[<declaration>]} "EOF"
 
 // declarations
-<declaration> ::= <varDecl> | <statement>
+<declaration> ::= <varDecl> | <funDecl> | <statement>
 <varDecl>     ::= "var" IDENTIFIER [ "=" <expression> ] ";";
+<funDecl>     ::= "fun" <function>
+<function>    ::= IDENTIFIER "(" [<parameters>] ")" <blockStmt>
+<parameters>  ::= IDENTIFIER {[ "," IDENTIFIER ]}
 
 // statements
 <statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt>

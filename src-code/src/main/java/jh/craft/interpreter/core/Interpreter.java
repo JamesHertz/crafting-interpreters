@@ -236,6 +236,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitFunction(Stmt.Function function) {
+        return null;
+    }
+
+    @Override
     public Object visitCall(Expr.Call call) {
         var callee = evaluate( call.callee() );
         if(!(callee instanceof LoxCallable function)){
