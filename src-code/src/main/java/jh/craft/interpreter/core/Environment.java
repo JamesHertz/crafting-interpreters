@@ -23,7 +23,12 @@ public class Environment {
         values.put( name.lexeme(), NO_VALUE );
     }
     public void initialize(Token name, Object value){
+        // TODO: error if variable was already initialize c:
         values.put( name.lexeme(), value );
+    }
+
+    public void define(String name, Object value){
+        values.put( name, value );
     }
 
     public Object value(Token name){

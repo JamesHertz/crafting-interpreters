@@ -13,12 +13,33 @@ import java.util.List;
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private final LoxErrorReporter reporter;
+    private final Environment globalEnv;
     private Environment currentEnv;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
-        this.currentEnv = new Environment();
+        this.globalEnv = new Environment();
+        this.currentEnv = globalEnv;
+        this.initGlobalEnvironment();
     }
 
+    private void initGlobalEnvironment(){
+        this.globalEnv.define("clock", new LoxCallable() {
+            @Override
+            public int arity() {
+                return 0;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Expr> arguments) {
+                return (Double) (System.currentTimeMillis() / 1000.0);
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+    }
 
     public void interpret(List<Stmt> statements){
         try{
@@ -28,9 +49,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
     }
 
-    private void execute(List<Stmt> statements){
-        for( var stmt : statements )
-            stmt.accept(this);
+    private void execute(Stmt statement){
+        statement.accept( this );
+    }
+
+    private void execute(List<Stmt> stmts){
+        stmts.forEach(this::execute);
+    }
+
+    private Object evaluate(Expr expression){
+        return expression.accept( this );
     }
 
     @Override
@@ -41,13 +69,13 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitGrouping(Expr.Grouping grouping) {
         var expr = grouping.expression();
-        return expr.accept( this );
+        return evaluate( expr );
     }
 
     @Override
     public Object visitBinary(Expr.Binary binary) {
-        var left  = binary.left().accept( this );
-        var right = binary.right().accept( this );
+        var left  = evaluate(binary.left());
+        var right = evaluate(binary.right());
         var op = binary.operator();
 
         if(op.type() == TokenType.EQUAL_EQUAL)
@@ -93,7 +121,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitUnary(Expr.Unary unary) {
         var op = unary.operator();
-        var value = unary.expression().accept( this );
+        var value = evaluate(unary.expression());
         return switch (op.type()){
             case BANG -> ! isTruly( value );
             case MINUS -> {
@@ -114,7 +142,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitAssign(Expr.Assign assign) {
-        var value = assign.value().accept( this );
+        var value = evaluate(assign.value());
         currentEnv.assign(
                 assign.name(), value
         );
@@ -123,14 +151,14 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitLogical(Expr.Logical logical) {
-        var left = logical.left().accept( this );
+        var left = evaluate(logical.left());
         var right = logical.right();
         var op = logical.operator().type();
 
         if( op == TokenType.AND )
-            return !isTruly(left) ? left : right.accept( this );
+            return !isTruly(left) ? left : evaluate(right);
         else
-            return isTruly(left) ? left : right.accept( this );
+            return isTruly(left) ? left : evaluate(right);
     }
 
     public boolean isEqual(Object fst, Object snd){
@@ -157,13 +185,13 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitExpression(Stmt.Expression expression) {
         // TODO: add a listener for when we are in REPL mode
-        expression.expression().accept(this);
+        evaluate(expression.expression());
         return null;
     }
 
     @Override
     public Void visitPrint(Stmt.Print print) {
-        var result = print.expression().accept( this );
+        var result = evaluate(print.expression());
         System.out.println(
                 Utils.stringifyValue( result )
         );
@@ -176,7 +204,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if(initializer == null)
             currentEnv.declare( var.name() );
         else
-            currentEnv.initialize( var.name(), initializer.accept( this ) );
+            currentEnv.initialize( var.name(), evaluate(initializer) );
         return null;
     }
 
@@ -191,20 +219,41 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitIfStmt(Stmt.IfStmt ifStmt) {
-        var condition = ifStmt.condition().accept( this );
+        var condition = evaluate( ifStmt.condition() );
         if( isTruly(condition) )
-            ifStmt.body().accept(this);
+            execute( ifStmt.body() );
         else if( ifStmt.elseStmt() != null )
-            ifStmt.elseStmt().accept( this );
+            execute( ifStmt.elseStmt() );
         return null;
     }
 
     @Override
     public Void visitWhileStmt(Stmt.WhileStmt whileStmt) {
         var condition = whileStmt.condition();
-        while( isTruly( condition.accept( this )) )
-            whileStmt.body().accept( this );
+        while( isTruly( evaluate( condition ) ) )
+            execute( whileStmt.body() );
         return null;
+    }
+
+    @Override
+    public Object visitCall(Expr.Call call) {
+        var callee = evaluate( call.callee() );
+        if(!(callee instanceof LoxCallable function)){
+            throw new LoxError(
+                    call.rightParen(), "Can only call functions and classes constructors."
+            );
+        }
+
+        var arguments = call.arguments();
+        if(function.arity() != arguments.size()){
+            throw new LoxError(
+                    call.rightParen(), String.format(
+                            "Expected '%d' arguments but got '%d'.", function.arity(), arguments.size()
+                    )
+            );
+        }
+
+        return function.call( this, arguments );
     }
 
 }

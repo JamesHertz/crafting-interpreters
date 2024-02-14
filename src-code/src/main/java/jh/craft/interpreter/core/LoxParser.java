@@ -129,7 +129,7 @@ public class LoxParser {
 
     private Stmt blockStatement(){
         List<Stmt> body = new ArrayList<>();
-        while( !isAtEnd() && !check(RIGHT_BRACE) ){
+        while( !check(RIGHT_BRACE) ){
             body.add( declaration() );
         }
 
@@ -263,8 +263,35 @@ public class LoxParser {
             return new Expr.Unary(operator, second);
         }
 
-        return primary();
+        return call();
     }
+
+
+    private Expr call(){
+        var expr = primary();
+        if(match(LEFT_PAREN)) {
+            var arguments = new ArrayList<Expr>();
+
+            if(!check(RIGHT_PAREN))
+                arguments.add( expression() );
+
+            while(!check(RIGHT_PAREN)){
+                consume(COMMA, "Expected ',' after argument");
+                arguments.add(
+                       expression()
+                );
+            }
+
+            var paren = consume(RIGHT_PAREN, "Expected enclosing ')'.");
+            expr = new Expr.Call(
+                    expr, paren, arguments
+            );
+        }
+
+        return expr;
+    }
+
+
 
     private Expr primary(){
         var token = advance();
@@ -337,14 +364,14 @@ public class LoxParser {
         }
     }
 
-    private void consume(TokenType type, String msg){
+    private Token consume(TokenType type, String msg){
         var token = peek();
         if( token.type() != type ){
             throw new LoxError(
                     token.line(), token.position(), msg
             );
         }
-        advance();
+        return advance();
     }
 
     private boolean isAtEnd(){

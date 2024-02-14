@@ -33,9 +33,13 @@
 <term>   ::= <factor> {[ ( "+" | "-" ) <term> ]}
 <factor> ::= <unary> {[ ( "*" | "/" ) factor  ]}
 
-<unary>   ::= <primary> | ( "-" | "!" ) <unary>
+<unary>   ::= <call> | ( "-" | "!" ) <unary>
+<call>    ::= <primary> {[ "(" [<arguments>] ")" ]}
+<arguments> ::= <expression> {[ "," <expression> ]}
+
 <primary> ::= "(" <expression> ")" | "false" | "true"
            | "nil" | NUMBER | STRING | IDENTIFIER
+
 
 // TODO: define NUMBER, STRING and IDENTIFIER
 // NUMBER ::= { <digit> } [ "." {<digit>} ]

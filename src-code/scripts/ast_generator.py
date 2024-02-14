@@ -57,6 +57,7 @@ def main():
         'Variable' : 'Token name',
         'Assign'   : 'Token name, Expr value',
         'Logical'  : 'Expr left, Token operator, Expr right',
+        'Call'       : 'Expr callee, Token rightParen, List<Expr> arguments',
     })
     
     define_ast('Stmt', {

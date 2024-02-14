@@ -14,6 +14,7 @@ public interface Expr {
         T visitVariable( Variable variable );
         T visitAssign( Assign assign );
         T visitLogical( Logical logical );
+        T visitCall( Call call );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -64,6 +65,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitLogical( this );
+        }
+    }
+
+    record Call( Expr callee, Token rightParen, List<Expr> arguments ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitCall( this );
         }
     }
 
