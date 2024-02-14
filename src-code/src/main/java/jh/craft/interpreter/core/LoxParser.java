@@ -44,29 +44,27 @@ public class LoxParser {
     }
 
     private Stmt funDecl(){
-        // TODO: pay attention to the names c:
+        // TODO: pay attention to the names later c:
         var name = consume(IDENTIFIER, "Expected function identifier");
         consume(LEFT_PAREN, "Expected '(' after function identifier");
 
         var parameters = new ArrayList<Token>();
-        do{
-            parameters.add(
-                    consume(IDENTIFIER, "Expected parameter identifier")
-            );
-        }while(!match(COMMA));
-
-        consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
-
-        if(parameters.size() > MAX_PARAMETERS){
-            reporter.error(
-                    new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " parameters")
-            );
+        if( !check(RIGHT_PAREN) ){
+            do{
+                if(parameters.size() > MAX_PARAMETERS){
+                    throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " parameters");
+                }
+                parameters.add(
+                        consume(IDENTIFIER, "Expected parameter identifier")
+                );
+            }while(match(COMMA));
         }
 
-        consume(LEFT_BRACE, "Expected '}' before function body");
+        consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
+        consume(LEFT_BRACE, "Expected '{' before function body");
         var body = blockStatement();
         return new Stmt.Function(
-                name, parameters, blockStatement()
+                name, parameters, body
         );
     }
 
@@ -301,17 +299,16 @@ public class LoxParser {
         if(match(LEFT_PAREN)) {
             var arguments = new ArrayList<Expr>();
 
-            if(!check(RIGHT_PAREN))
-                arguments.add( expression() );
-
-            while(!check(RIGHT_PAREN)){
-                consume(COMMA, "Expected ',' after argument");
-                arguments.add(
-                       expression()
-                );
+            if( !check(RIGHT_PAREN) ){
+                do{
+                    if(arguments.size() > MAX_PARAMETERS){
+                        throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " arguments");
+                    }
+                    arguments.add( expression() );
+                }while(match(COMMA));
             }
 
-            var paren = consume(RIGHT_PAREN, "Expected enclosing ')'.");
+            var paren = consume(RIGHT_PAREN, "Expected enclosing ')' after arguments.");
             expr = new Expr.Call(
                     expr, paren, arguments
             );
