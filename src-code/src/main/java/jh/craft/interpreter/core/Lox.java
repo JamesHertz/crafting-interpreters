@@ -1,13 +1,12 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.LoxErrorReporter;
+import jh.craft.interpreter.types.LoxErrorReporter;
 import jh.craft.interpreter.scanner.LoxScanner;
 
 public class Lox {
     private boolean hasError;
     private final LoxErrorReporter reporter;
     private final Interpreter interpreter;
-
 
     public Lox(LoxErrorReporter reporter) {
         this.reporter = error -> {
@@ -17,7 +16,6 @@ public class Lox {
         this.hasError = false;
         this.interpreter = new Interpreter( this.reporter );
     }
-
 
     public void run(String sourceCode){
         var tokens = new LoxScanner(

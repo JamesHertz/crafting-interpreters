@@ -1,7 +1,7 @@
 package jh.craft.interpreter.scanner;
 
-import jh.craft.interpreter.errors.LoxError;
-import jh.craft.interpreter.errors.LoxErrorReporter;
+import jh.craft.interpreter.types.LoxError;
+import jh.craft.interpreter.types.LoxErrorReporter;
 
 import java.util.*;
 

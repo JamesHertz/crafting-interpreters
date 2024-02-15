@@ -1,4 +1,4 @@
-package jh.craft.interpreter.representation;
+package jh.craft.interpreter.ast;
 
 public class AstPrinter implements Expr.Visitor<String>{
     public String print(Expr exp){

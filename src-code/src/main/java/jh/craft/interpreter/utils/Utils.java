@@ -1,7 +1,5 @@
 package jh.craft.interpreter.utils;
 
-import java.util.Arrays;
-
 public class Utils {
     public static String stringify(Object value){
         if(value instanceof String)

@@ -1,19 +1,21 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.LoxError;
-import jh.craft.interpreter.errors.LoxErrorReporter;
-import jh.craft.interpreter.representation.Expr;
-import jh.craft.interpreter.representation.Stmt;
+import jh.craft.interpreter.types.LoxCallable;
+import jh.craft.interpreter.types.LoxError;
+import jh.craft.interpreter.types.LoxErrorReporter;
+import jh.craft.interpreter.ast.Expr;
+import jh.craft.interpreter.ast.Stmt;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.scanner.TokenType;
 import jh.craft.interpreter.utils.Utils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
-    private final LoxErrorReporter reporter;
     private final Environment globalEnv;
+    private final LoxErrorReporter reporter;
     private Environment currentEnv;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
@@ -30,7 +32,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             }
 
             @Override
-            public Object call(Interpreter interpreter, List<Expr> arguments) {
+            public Object call(Interpreter interpreter, List<Object> arguments) {
                 return (Double) (System.currentTimeMillis() / 1000.0);
             }
 
@@ -43,7 +45,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     public void interpret(List<Stmt> statements){
         try{
-            execute(statements);
+            for( var stmt : statements )
+                execute(stmt);
         }catch (LoxError error){
             reporter.error( error );
         }
@@ -53,8 +56,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         statement.accept( this );
     }
 
-    private void execute(List<Stmt> stmts){
-        stmts.forEach(this::execute);
+    protected void executeBlock(List<Stmt> stmts, Environment environment){
+        var previous = this.currentEnv;
+        this.currentEnv = environment;
+        for( var stmt : stmts )
+            execute(stmt);
+        this.currentEnv = previous;
     }
 
     private Object evaluate(Expr expression){
@@ -85,14 +92,17 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             return !isEqual(left, right);
 
         if(op.type() == TokenType.PLUS) {
-            if (right instanceof Double && left instanceof Double)
-                return (double) left + (double) right;
+            if (right instanceof Double rightNr && left instanceof Double leftNr)
+                return leftNr + rightNr;
 
-            if (right instanceof String && left instanceof String)
-                return (String) left + (String) right;
+            if(right instanceof String rightStr)
+                return Utils.stringifyValue(left) + rightStr;
+
+            if(left instanceof String leftStr)
+                return leftStr + Utils.stringifyValue(right);
 
             throw new LoxError(op, String.format(
-                    "Expected either two strings or two number but got: %s and %s",
+                    "Expected either number or at least one string operand but got: %s and %s",
                     Utils.stringify(left), Utils.stringify(right)
             ));
 
@@ -126,7 +136,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             case BANG -> ! isTruly( value );
             case MINUS -> {
                checkNumberOperands(op, value);
-               yield  - (double) value;
+               yield  - (Double) value;
             }
             default -> {
                 throw new RuntimeException("Unreachable");
@@ -210,10 +220,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitBlock(Stmt.Block block) {
-        var previous = currentEnv;
-        this.currentEnv = new Environment( previous );
-        execute( block.body() );
-        this.currentEnv = previous;
+        this.executeBlock(
+                block.body(), new Environment( currentEnv )
+        );
         return null;
     }
 
@@ -258,7 +267,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             );
         }
 
-        return function.call( this, arguments );
+        var values = new ArrayList<>( arguments.size() );
+        for(var expr : arguments)
+            values.add( this.evaluate( expr ) );
+
+        return function.call( this, values );
     }
 
 }

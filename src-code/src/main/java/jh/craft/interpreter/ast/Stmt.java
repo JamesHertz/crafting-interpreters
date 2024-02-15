@@ -1,5 +1,5 @@
 
-package jh.craft.interpreter.representation;
+package jh.craft.interpreter.ast;
 
 import jh.craft.interpreter.scanner.Token;
 import java.util.List;
@@ -60,7 +60,7 @@ public interface Stmt {
         }
     }
 
-    record Function( Token name, List<Token> parameters, Stmt body ) implements Stmt {
+    record Function( Token name, List<Token> parameters, List<Stmt> body ) implements Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitFunction( this );

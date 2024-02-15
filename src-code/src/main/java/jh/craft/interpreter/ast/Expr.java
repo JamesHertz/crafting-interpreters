@@ -1,5 +1,5 @@
 
-package jh.craft.interpreter.representation;
+package jh.craft.interpreter.ast;
 
 import jh.craft.interpreter.scanner.Token;
 import java.util.List;

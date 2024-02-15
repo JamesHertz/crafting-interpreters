@@ -4,7 +4,7 @@
 package jh.craft.interpreter;
 
 import jh.craft.interpreter.core.Lox;
-import jh.craft.interpreter.errors.LoxError;
+import jh.craft.interpreter.types.LoxError;
 
 import java.io.*;
 import java.nio.file.Files;

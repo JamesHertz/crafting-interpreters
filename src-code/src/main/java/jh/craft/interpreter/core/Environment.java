@@ -1,6 +1,6 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.LoxError;
+import jh.craft.interpreter.types.LoxError;
 import jh.craft.interpreter.scanner.Token;
 
 import java.util.HashMap;

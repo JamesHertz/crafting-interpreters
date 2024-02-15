@@ -1,4 +1,4 @@
-package jh.craft.interpreter.errors;
+package jh.craft.interpreter.types;
 
 import jh.craft.interpreter.scanner.Token;
 

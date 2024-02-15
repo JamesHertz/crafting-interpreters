@@ -1,8 +1,8 @@
 package jh.craft.interpreter.core;
 
-import jh.craft.interpreter.errors.*;
-import jh.craft.interpreter.representation.Expr;
-import jh.craft.interpreter.representation.Stmt;
+import jh.craft.interpreter.types.*;
+import jh.craft.interpreter.ast.Expr;
+import jh.craft.interpreter.ast.Stmt;
 import jh.craft.interpreter.scanner.Token;
 import jh.craft.interpreter.scanner.TokenType;
 
@@ -62,7 +62,7 @@ public class LoxParser {
 
         consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
         consume(LEFT_BRACE, "Expected '{' before function body");
-        var body = blockStatement();
+        var body = block();
         return new Stmt.Function(
                 name, parameters, body
         );
@@ -155,13 +155,16 @@ public class LoxParser {
     }
 
     private Stmt blockStatement(){
+        return new Stmt.Block( block() );
+    }
+
+    private List<Stmt> block(){
         List<Stmt> body = new ArrayList<>();
         while( !check(RIGHT_BRACE) ){
             body.add( declaration() );
         }
-
         consume(RIGHT_BRACE, "Expected a '}'.");
-        return new Stmt.Block( body );
+        return body;
     }
 
     private Stmt printStatement(){

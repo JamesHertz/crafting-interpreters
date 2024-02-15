@@ -3,14 +3,14 @@
 from io import TextIOWrapper
 from typing import Dict
 
-BASE_NAME = "src/main/java/jh/craft/interpreter/representation/{}.java"
+BASE_NAME = "src/main/java/jh/craft/interpreter/ast/{}.java"
 
 def join_lines(lines):
     return '\n'.join(lines)
 
 def generate_classes( baseclass: str, classes : Dict[str, str] ) :
     return f"""
-package jh.craft.interpreter.representation;
+package jh.craft.interpreter.ast;
 
 import jh.craft.interpreter.scanner.Token;
 import java.util.List;
@@ -67,7 +67,7 @@ def main():
         'Block'      : 'List<Stmt> body',
         'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
         'WhileStmt'  : 'Expr condition, Stmt body',
-        'Function'   : 'Token name, List<Token> parameters, Stmt body',
+        'Function'   : 'Token name, List<Token> parameters, List<Stmt> body',
     })
 
 
