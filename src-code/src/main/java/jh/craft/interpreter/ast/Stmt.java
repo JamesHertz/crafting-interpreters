@@ -14,6 +14,7 @@ public interface Stmt {
         T visitIfStmt( IfStmt ifstmt );
         T visitWhileStmt( WhileStmt whilestmt );
         T visitFunction( Function function );
+        T visitReturnStmt( ReturnStmt returnstmt );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -64,6 +65,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitFunction( this );
+        }
+    }
+
+    record ReturnStmt( Token keyword, Expr expression ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitReturnStmt( this );
         }
     }
 

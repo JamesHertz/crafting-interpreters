@@ -246,7 +246,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitFunction(Stmt.Function function) {
+        currentEnv.define(
+                function.name().lexeme(), new LoxFunction(currentEnv, function)
+        );
         return null;
+    }
+
+    @Override
+    public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
+        var returnExpr = returnStmt.expression();
+        throw new Return(
+            returnExpr == null ? null : evaluate(returnExpr)
+        );
     }
 
     @Override

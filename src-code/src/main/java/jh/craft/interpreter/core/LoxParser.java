@@ -83,13 +83,24 @@ public class LoxParser {
     }
 
 
+
     private Stmt statement(){
         if(match(PRINT)) return printStatement();
         if(match(LEFT_BRACE)) return blockStatement();
         if(match(IF)) return ifStatement();
         if(match(WHILE)) return whileStatement();
         if(match(FOR)) return forStatement();
+        if(match(RETURN)) return returnStatement();
         return expressionStatement();
+    }
+
+    private Stmt returnStatement() {
+        var stmt = new Stmt.ReturnStmt(
+                previous(), check(SEMICOLON) ? null : expression()
+        );
+
+        consume(SEMICOLON, "Expected ';' after return value.");
+        return stmt;
     }
 
     private Stmt forStatement() {

@@ -68,6 +68,7 @@ def main():
         'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
         'WhileStmt'  : 'Expr condition, Stmt body',
         'Function'   : 'Token name, List<Token> parameters, List<Stmt> body',
+        'ReturnStmt'     : 'Token keyword, Expr expression',
     })
 
 

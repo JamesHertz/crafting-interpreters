@@ -15,14 +15,15 @@
 <parameters>  ::= IDENTIFIER {[ "," IDENTIFIER ]}
 
 // statements
-<statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt>
+<statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt> | <returnStmt>
 
-<exprStmt>  ::=  expression ";"
-<printStmt> ::=  "print" expression ";"
-<blockStmt> ::=  "{" declaration* "}"
-<ifStmt>    ::= "if" "(" <expression> ")" <statement> ["else" <statement> ]
-<whileStmt> ::= "while" "(" <expression> ")" <statement>
-<forStmt>   ::= "for" "(" ( <varDecl> | <exprStmt> | ";" )  [<expression>] ";" [<expression>] ")" <statement>
+<exprStmt>   ::=  expression ";"
+<printStmt>  ::=  "print" expression ";"
+<blockStmt>  ::=  "{" declaration* "}"
+<ifStmt>     ::= "if" "(" <expression> ")" <statement> ["else" <statement> ]
+<whileStmt>  ::= "while" "(" <expression> ")" <statement>
+<forStmt>    ::= "for" "(" ( <varDecl> | <exprStmt> | ";" )  [<expression>] ";" [<expression>] ")" <statement>
+<returnStmt> ::= "return" [<expression>] ";"
 
 // expressions c:
 <expression> ::= <assigment>
