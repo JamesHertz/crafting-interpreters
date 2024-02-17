@@ -285,4 +285,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return function.call( this, values );
     }
 
+    @Override
+    public Object visitAnonymousFun(Expr.AnonymousFun anonymousFun) {
+        return new LoxFunction.AnonymousFunction(currentEnv, anonymousFun);
+    }
+
 }

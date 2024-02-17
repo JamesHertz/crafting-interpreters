@@ -39,13 +39,22 @@ public class LoxParser {
 
     private Stmt declaration(){
         if(match(VAR)) return varDecl();
-        if(match(FUN)) return funDecl();
+        if(!checkNext(LEFT_PAREN) && match(FUN))
+            return funDecl();
         return statement();
     }
 
     private Stmt funDecl(){
         // TODO: pay attention to the names later c:
         var name = consume(IDENTIFIER, "Expected function identifier");
+        var sig = funSignature();
+        return new Stmt.Function(
+                name, sig.parameters(), sig.body()
+        );
+    }
+
+    private Expr.AnonymousFun funSignature(){
+        // TODO: do something about this
         consume(LEFT_PAREN, "Expected '(' after function identifier");
 
         var parameters = new ArrayList<Token>();
@@ -63,8 +72,9 @@ public class LoxParser {
         consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
         consume(LEFT_BRACE, "Expected '{' before function body");
         var body = block();
-        return new Stmt.Function(
-                name, parameters, body
+
+        return new Expr.AnonymousFun(
+                parameters, body
         );
     }
 
@@ -348,6 +358,7 @@ public class LoxParser {
                 throw error("Expected ')' :c");
             }
             case IDENTIFIER -> new Expr.Variable( token );
+            case FUN -> funSignature(); // parse anonymous function
             default -> {
                 throw error("Expected an expression :c");
             }
@@ -375,6 +386,13 @@ public class LoxParser {
         if( isAtEnd() )
             return false;
         return peek().type() == type;
+    }
+
+    public boolean checkNext(TokenType type) {
+       if( isAtEnd() )
+           return false;
+       var target = current + 1;
+       return target < tokens.size() && tokens.get(target).type() == type;
     }
 
     // The idea is to skip enough tokens until we

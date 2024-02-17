@@ -15,6 +15,7 @@ public interface Expr {
         T visitAssign( Assign assign );
         T visitLogical( Logical logical );
         T visitCall( Call call );
+        T visitAnonymousFun( AnonymousFun anonymousfun );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -72,6 +73,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitCall( this );
+        }
+    }
+
+    record AnonymousFun( List<Token> parameters, List<Stmt> body ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitAnonymousFun( this );
         }
     }
 

@@ -54,4 +54,9 @@ public class AstPrinter implements Expr.Visitor<String>{
     public String visitCall(Expr.Call call) {
         return null;
     }
+
+    @Override
+    public String visitAnonymousFun(Expr.AnonymousFun anonymousfun) {
+        return null;
+    }
 }

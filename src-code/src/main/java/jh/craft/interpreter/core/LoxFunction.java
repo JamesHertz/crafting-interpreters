@@ -1,5 +1,6 @@
 package jh.craft.interpreter.core;
 
+import jh.craft.interpreter.ast.Expr;
 import jh.craft.interpreter.ast.Stmt;
 import jh.craft.interpreter.types.LoxCallable;
 
@@ -27,6 +28,7 @@ public class LoxFunction implements LoxCallable {
         var params = declaration.parameters();
         for(var i = 0; i < params.size(); i++){
             var param = params.get(i);
+            // TODO: think about this...
             callEnv.define(
                     param.lexeme(), arguments.get(i)
             );
@@ -39,5 +41,24 @@ public class LoxFunction implements LoxCallable {
         }
 
         return null;
+    }
+
+
+    @Override
+    public String toString() {
+        return "<fn " +  declaration.name().lexeme()  + ">";
+    }
+
+
+    static class AnonymousFunction extends LoxFunction {
+        public AnonymousFunction(Environment closure, Expr.AnonymousFun declaration) {
+            // TODO: fix this later
+            super(closure, new Stmt.Function(null, declaration.parameters(), declaration.body()));
+        }
+
+        @Override
+        public String toString() {
+            return "<anonymous fn>";
+        }
     }
 }

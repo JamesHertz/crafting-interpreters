@@ -8,11 +8,12 @@
 <program> ::= {[<declaration>]} "EOF"
 
 // declarations
-<declaration> ::= <varDecl> | <funDecl> | <statement>
-<varDecl>     ::= "var" IDENTIFIER [ "=" <expression> ] ";";
-<funDecl>     ::= "fun" <function>
-<function>    ::= IDENTIFIER "(" [<parameters>] ")" <blockStmt>
-<parameters>  ::= IDENTIFIER {[ "," IDENTIFIER ]}
+<declaration>  ::= <varDecl> | <funDecl> | <statement>
+<varDecl>      ::= "var" IDENTIFIER [ "=" <expression> ] ";";
+<funDecl>      ::= "fun" <function>
+<function>     ::= IDENTIFIER <funSignature>
+<funSignature> ::= "(" [<parameters>] ")" <blockStmt>
+<parameters>   ::= IDENTIFIER {[ "," IDENTIFIER ]}
 
 // statements
 <statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt> | <returnStmt>
@@ -43,6 +44,9 @@
 
 <primary> ::= "(" <expression> ")" | "false" | "true"
            | "nil" | NUMBER | STRING | IDENTIFIER
+           | <anonymousFunDecl>
+
+<anonymousFunDecl> ::= "fun" <funSignature>
 
 
 // TODO: define NUMBER, STRING and IDENTIFIER
