@@ -23,8 +23,15 @@ public class Environment {
         values.put( name.lexeme(), NO_VALUE );
     }
     public void initialize(Token name, Object value){
-        // TODO: error if variable was already initialize c:
-        values.put( name.lexeme(), value );
+        var identifier = name.lexeme();
+
+        if( values.containsKey( name.lexeme() ) ){
+            throw new LoxError(
+                    name, String.format("'%s' was already defined.", identifier)
+            );
+        }
+
+        values.put( identifier, value );
     }
 
     public void define(String name, Object value){
