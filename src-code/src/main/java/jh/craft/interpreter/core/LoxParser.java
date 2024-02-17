@@ -212,18 +212,43 @@ public class LoxParser {
 
     private Expr assigment(){
         var expr = or();
-        if(match(EQUAL)){
-            var name = this.previous();
+        if(match(
+                EQUAL,
+                SLASH_EQUAL, PLUS_EQUAL,
+                MINUS_EQUAL, STAR_EQUAL
+        )){
+            var op = this.previous();
             var value = assigment();
 
             if(expr instanceof Expr.Variable variable ){
+                value = switch (op.type()){
+                    case PLUS_EQUAL -> new Expr.Binary(
+                            variable, Token.from(op, PLUS), value
+                    );
+
+                    case SLASH_EQUAL -> new Expr.Binary(
+                            variable, Token.from(op, SLASH), value
+                    );
+
+                    case MINUS_EQUAL -> new Expr.Binary(
+                            variable, Token.from(op, MINUS), value
+                    );
+
+                    case STAR_EQUAL -> new Expr.Binary(
+                            variable, Token.from(op, STAR), value
+                    );
+
+                    // case EQUAL ...
+                    default -> value;
+                };
+
                 return new Expr.Assign(
                         variable.name(), value
                 );
             }
 
             reporter.error(new LoxError(
-                    name, "Invalid assigment target."
+                    op, "Invalid assigment target."
             ));
         }
 

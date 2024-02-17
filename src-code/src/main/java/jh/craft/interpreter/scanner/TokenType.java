@@ -11,6 +11,11 @@ public enum TokenType {
     GREATER, GREATER_EQUAL,
     LESS, LESS_EQUAL,
 
+    // shortcuts
+    PLUS_EQUAL, MINUS_EQUAL,
+    STAR_EQUAL, SLASH_EQUAL,
+
+
     // Literals.
     IDENTIFIER, STRING, NUMBER,
 

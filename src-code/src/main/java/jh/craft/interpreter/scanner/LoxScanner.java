@@ -73,9 +73,18 @@ public class LoxScanner {
             case ',' -> createToken( TokenType.COMMA );
 
             // arithmetic signs
-            case '+' -> createToken( TokenType.PLUS );
-            case '-' -> createToken( TokenType.MINUS );
-            case '*' -> createToken( TokenType.STAR );
+            case '+' -> createToken(
+                    match('=') ?  TokenType.PLUS_EQUAL : TokenType.PLUS
+            );
+
+            case '-' -> createToken(
+                match('=') ? TokenType.MINUS_EQUAL : TokenType.MINUS
+            );
+
+            case '*' -> createToken(
+                match('=') ? TokenType.STAR_EQUAL : TokenType.STAR
+            );
+
             case '/' -> checkComments();
 
             // handle space c:
@@ -149,7 +158,9 @@ public class LoxScanner {
 
     // used to parse more complex constructs such as Strings, Identifiers, etc...
     private Token checkComments(){
-        if( match('/') ) {
+        if(match('='))
+            return createToken( TokenType.SLASH_EQUAL );
+        else if( match('/') ) {
             char next;
             do {
                 next = advance();

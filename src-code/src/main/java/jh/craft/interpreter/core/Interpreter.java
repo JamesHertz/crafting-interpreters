@@ -58,7 +58,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     protected void executeBlock(List<Stmt> stmts, Environment environment){
         var previous = this.currentEnv;
-        try {
+        try{
             this.currentEnv = environment;
             for( var stmt : stmts )
                 execute(stmt);
