@@ -15,7 +15,7 @@ public interface Expr {
         T visitAssign( Assign assign );
         T visitLogical( Logical logical );
         T visitCall( Call call );
-        T visitAnonymousFun( AnonymousFun anonymousfun );
+        T visitAnonymousFun( AnonymousFun anonymousFun );
     }
 
     <T> T accept( Visitor<T> visitor );

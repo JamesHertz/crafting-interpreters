@@ -11,10 +11,10 @@ public interface Stmt {
         T visitPrint( Print print );
         T visitVar( Var var );
         T visitBlock( Block block );
-        T visitIfStmt( IfStmt ifstmt );
-        T visitWhileStmt( WhileStmt whilestmt );
-        T visitFunction( Function function );
-        T visitReturnStmt( ReturnStmt returnstmt );
+        T visitIfStmt( IfStmt ifStmt );
+        T visitWhileStmt( WhileStmt whileStmt );
+        T visitFunctionDecl( FunctionDecl functionDecl );
+        T visitReturnStmt( ReturnStmt returnStmt );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -61,10 +61,10 @@ public interface Stmt {
         }
     }
 
-    record Function( Token name, List<Token> parameters, List<Stmt> body ) implements Stmt {
+    record FunctionDecl( Token name, List<Token> parameters, List<Stmt> body ) implements Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
-            return visitor.visitFunction( this );
+            return visitor.visitFunctionDecl( this );
         }
     }
 

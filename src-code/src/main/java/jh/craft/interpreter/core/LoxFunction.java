@@ -9,9 +9,9 @@ import java.util.List;
 public class LoxFunction implements LoxCallable {
 
     private final Environment closure;
-    private final Stmt.Function declaration;
+    private final Stmt.FunctionDecl declaration;
 
-    public LoxFunction(Environment closure, Stmt.Function declaration){
+    public LoxFunction(Environment closure, Stmt.FunctionDecl declaration){
         this.closure = closure;
         this.declaration = declaration;
     }
@@ -53,7 +53,7 @@ public class LoxFunction implements LoxCallable {
     static class AnonymousFunction extends LoxFunction {
         public AnonymousFunction(Environment closure, Expr.AnonymousFun declaration) {
             // TODO: fix this later
-            super(closure, new Stmt.Function(null, declaration.parameters(), declaration.body()));
+            super(closure, new Stmt.FunctionDecl(null, declaration.parameters(), declaration.body()));
         }
 
         @Override

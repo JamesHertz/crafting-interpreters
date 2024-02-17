@@ -20,7 +20,7 @@ public interface {baseclass} {{
     interface Visitor<T> {{
 { join_lines(
     [
-        f'        T visit{cname}( {cname} {cname.lower()} );' 
+        f'        T visit{cname}( {cname} {cname[0].lower() + cname[1:]} );' 
         for cname in classes
     ]
 )}
@@ -68,7 +68,7 @@ def main():
         'Block'      : 'List<Stmt> body',
         'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
         'WhileStmt'  : 'Expr condition, Stmt body',
-        'Function'   : 'Token name, List<Token> parameters, List<Stmt> body',
+        'FunctionDecl'   : 'Token name, List<Token> parameters, List<Stmt> body',
         'ReturnStmt'     : 'Token keyword, Expr expression',
     })
 

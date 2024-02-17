@@ -245,7 +245,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
-    public Void visitFunction(Stmt.Function function) {
+    public Void visitFunctionDecl(Stmt.FunctionDecl function) {
         currentEnv.define(
                 function.name().lexeme(), new LoxFunction(currentEnv, function)
         );

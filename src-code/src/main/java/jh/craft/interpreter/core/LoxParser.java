@@ -48,7 +48,7 @@ public class LoxParser {
         // TODO: pay attention to the names later c:
         var name = consume(IDENTIFIER, "Expected function identifier");
         var sig = funSignature();
-        return new Stmt.Function(
+        return new Stmt.FunctionDecl(
                 name, sig.parameters(), sig.body()
         );
     }
@@ -317,7 +317,6 @@ public class LoxParser {
         return call();
     }
 
-
     private Expr call(){
         var expr = primary();
         if(match(LEFT_PAREN)) {
@@ -441,8 +440,10 @@ public class LoxParser {
     }
 
     private Token advance(){
-        if(!isAtEnd()) current++;
-        return previous();
+        if(isAtEnd())
+            return peek();
+       current++;
+       return previous();
     }
 
     private Token previous(){
