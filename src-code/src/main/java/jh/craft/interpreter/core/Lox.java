@@ -11,9 +11,10 @@ public class Lox {
     public Lox(LoxErrorReporter reporter) {
         this.reporter = error -> {
             hasError = true;
-            reporter.error( error );
+            reporter.report( error );
         };
         this.hasError = false;
+
         this.interpreter = new Interpreter( this.reporter );
     }
 
@@ -22,15 +23,34 @@ public class Lox {
                 sourceCode, reporter
         ).getTokens();
 
-        if(!hasError){
-            var statements = new LoxParser(
-                    tokens, reporter
-            ).parse();
-
-            if(!hasError)
-                interpreter.interpret( statements );
+        if (hasError){
+            this.reset();
+            return;
         }
 
+        var statements = new LoxParser(
+                tokens, reporter
+        ).parse();
+
+        if(hasError){
+            this.reset();
+            return;
+        }
+
+        var distances = new LoxStaticAnalyst(
+                reporter
+        ).declarationDistances(statements);
+
+        if(hasError){
+            this.reset();
+            return;
+        }
+
+        interpreter.interpret( statements, distances );
+    }
+
+
+    private void reset(){
         hasError = false;
     }
 

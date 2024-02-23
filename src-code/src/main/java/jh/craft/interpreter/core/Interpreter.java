@@ -11,16 +11,19 @@ import jh.craft.interpreter.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private final Environment globalEnv;
     private final LoxErrorReporter reporter;
     private Environment currentEnv;
+    private Map<Token, Integer> declarationDistances;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
         this.globalEnv = new Environment();
         this.currentEnv = globalEnv;
+        this.declarationDistances = null;
         this.initGlobalEnvironment();
     }
 
@@ -43,12 +46,13 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         });
     }
 
-    public void interpret(List<Stmt> statements){
+    public void interpret(List<Stmt> statements, Map<Token, Integer> declarationDistances){
         try{
+            this.declarationDistances = declarationDistances;
             for( var stmt : statements )
                 execute(stmt);
         }catch (LoxError error){
-            reporter.error( error );
+            reporter.report( error );
         }
     }
 
@@ -150,7 +154,8 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitVariable(Expr.Variable variable) {
         var name = variable.name();
-        return currentEnv.value( name );
+        var scopeWalk = declarationDistances.get( variable.name() );
+        return currentEnv.value( name, scopeWalk );
     }
 
     @Override
@@ -257,9 +262,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
-        var returnExpr = returnStmt.expression();
+        var returnValue = returnStmt.value();
         throw new Return(
-            returnExpr == null ? null : evaluate(returnExpr)
+            returnValue == null ? null : evaluate(returnValue)
         );
     }
 

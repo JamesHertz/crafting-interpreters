@@ -68,7 +68,7 @@ public interface Stmt {
         }
     }
 
-    record ReturnStmt( Token keyword, Expr expression ) implements Stmt {
+    record ReturnStmt( Token keyword, Expr value ) implements Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitReturnStmt( this );

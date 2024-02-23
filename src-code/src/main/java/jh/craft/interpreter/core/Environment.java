@@ -38,9 +38,14 @@ public class Environment {
         values.put( name, value );
     }
 
-    public Object value(Token name){
+    public Object value(Token name, int scopeWalk){
         var identifier = name.lexeme();
 
+        Environment env = this;
+        for(int i = scopeWalk; i > 0 ; i--)
+            env = env.parent;
+
+        var values = env.values;
         if(values.containsKey( identifier )){
             var value = values.get(identifier);
             if( value == NO_VALUE )
@@ -49,8 +54,6 @@ public class Environment {
                 );
             return value;
         }
-
-        if( parent != null ) return parent.value( name );
 
         throw new LoxError(
                 name, String.format("'%s' not defined.", identifier)

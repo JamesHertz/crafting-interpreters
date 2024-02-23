@@ -250,7 +250,7 @@ public class LoxScanner {
 
     // My shaky way of dealing with errors
     private void reportError(String fmt, Object ...args){
-        reporter.error(new LoxError(
+        reporter.report(new LoxError(
                 line, current - 1, String.format(fmt, args)
            )
         );

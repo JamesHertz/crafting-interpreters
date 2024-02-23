@@ -30,7 +30,7 @@ public class LoxParser {
             try{
                 stmts.add( declaration() );
             }catch (LoxError error){
-                reporter.error(error);
+                reporter.report(error);
                 synchronize();
             }
         }
@@ -247,7 +247,7 @@ public class LoxParser {
                 );
             }
 
-            reporter.error(new LoxError(
+            reporter.report(new LoxError(
                     op, "Invalid assigment target."
             ));
         }
