@@ -15,10 +15,15 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     private final Stack<Set<String>> declarations;
     private final LoxErrorReporter reporter;
 
+    //
+    private FunctionType currFunctionType;
+
     public LoxStaticAnalyst(LoxErrorReporter reporter) {
         this.reporter = reporter;
         this.declarations = new Stack<>();
         this.distanceToDeclaration = new TreeMap<>(Comparator.comparingInt(System::identityHashCode));
+
+        this.currFunctionType = FunctionType.NONE;
     }
 
     public Map<Token, Integer> declarationDistances(List<Stmt> statements) {
@@ -95,9 +100,11 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitAnonymousFun(Expr.AnonymousFun anonymousFun) {
-        for(var stmt : anonymousFun.body() )
-            evaluate( stmt );
-
+        evalFunction(
+                anonymousFun.parameters(),
+                anonymousFun.body(),
+                FunctionType.FUNCTION
+        );
         return null;
     }
 
@@ -150,21 +157,26 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitFunctionDecl(Stmt.FunctionDecl functionDecl) {
         define(functionDecl.name());
-        beginScope();
-        for(var name : functionDecl.parameters() )
-            define(name);
-        for(var stmt : functionDecl.body())
-            evaluate(stmt);
-        endScope();;
+        evalFunction(
+                functionDecl.parameters(),
+                functionDecl.body(),
+                FunctionType.FUNCTION
+        );
         return null;
     }
 
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
+        if(currFunctionType == FunctionType.NONE){
+            throw new LoxError(
+                    returnStmt.keyword(),
+                    "Cannot have a return statement outside a function."
+            );
+        }
+
         if(returnStmt.value() != null)
             evaluate(returnStmt.value());
 
-        // TODO: handle later
         return null;
     }
 
@@ -192,11 +204,32 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     }
 
 
+    private void evalFunction(List<Token> params, List<Stmt> body, FunctionType type){
+        var previous = currFunctionType;
+        currFunctionType = type;
+
+        beginScope();
+        for(var name : params )
+            define(name);
+        for(var stmt : body )
+            evaluate(stmt);
+        endScope();
+
+        currFunctionType = previous;
+    }
+
+
     private void beginScope(){
         declarations.push(new HashSet<>());
     }
 
     private void endScope(){
         declarations.pop();
+    }
+
+    private enum FunctionType{
+        NONE,
+        METHOD,
+        FUNCTION;
     }
 }
