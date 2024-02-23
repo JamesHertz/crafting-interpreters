@@ -8,12 +8,13 @@
 <program> ::= {[<declaration>]} "EOF"
 
 // declarations
-<declaration>  ::= <varDecl> | <funDecl> | <statement>
+<declaration>  ::= <statement> | <varDecl> | <funDecl> | <classDecl>
 <varDecl>      ::= "var" IDENTIFIER [ "=" <expression> ] ";";
 <funDecl>      ::= "fun" <function>
 <function>     ::= IDENTIFIER <funSignature>
 <funSignature> ::= "(" [<parameters>] ")" <blockStmt>
 <parameters>   ::= IDENTIFIER {[ "," IDENTIFIER ]}
+<classDecl>    ::= "class" IDENTIFIER "{" {[<function>]}  "}"
 
 // statements
 <statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt> | <returnStmt>
@@ -28,7 +29,7 @@
 
 // expressions c:
 <expression> ::= <assigment>
-<assigment>  ::= IDENTIFIER "=" <assigment> | <logical_or>
+<assigment>  ::= [ <call> "." ] IDENTIFIER "=" <assigment> | <logical_or>
 
 <logical_or>  ::= <logical_and> {[ "||" <logical_or> ]}
 <logical_and> ::= <equality> {[ "||" <logical_and> ]}
@@ -39,11 +40,11 @@
 <factor> ::= <unary> {[ ( "*" | "/" ) factor  ]}
 
 <unary>   ::= <call> | ( "-" | "!" ) <unary>
-<call>    ::= <primary> {[ "(" [<arguments>] ")" ]}
+<call>    ::= <primary> {[ ( "(" [<arguments>] ")" ) | ( "." IDENTIFIER ) ]}
 <arguments> ::= <expression> {[ "," <expression> ]}
 
 <primary> ::= "(" <expression> ")" | "false" | "true"
-           | "nil" | NUMBER | STRING | IDENTIFIER
+           | "nil" | NUMBER | STRING | IDENTIFIER | THIS
            | <anonymousFunDecl>
 
 <anonymousFunDecl> ::= "fun" <funSignature>

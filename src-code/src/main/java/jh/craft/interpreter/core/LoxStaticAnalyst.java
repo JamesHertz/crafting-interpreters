@@ -71,8 +71,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitVariable(Expr.Variable variable) {
-        var scope = this.findScope(variable.name());
-        distanceToDeclaration.put( variable.name(), scope );
+        resolve(variable.name());
         return null;
     }
 
@@ -109,6 +108,25 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     }
 
     @Override
+    public Void visitGet(Expr.Get get) {
+        evaluate(get.expression());
+        return null;
+    }
+
+    @Override
+    public Void visitSet(Expr.Set set) {
+        evaluate(set.expression());
+        evaluate(set.value());
+        return null;
+    }
+
+    @Override
+    public Void visitThisExpr(Expr.ThisExpr thisExpr) {
+        resolve( thisExpr.keyword() );
+        return null;
+    }
+
+    @Override
     public Void visitExpression(Stmt.Expression expression) {
         evaluate(expression.expression());
         return null;
@@ -131,8 +149,8 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitBlock(Stmt.Block block) {
         beginScope();
-        for( var stmt : block.body() )
-            evaluate(stmt);
+            for( var stmt : block.body() )
+                evaluate(stmt);
         endScope();
         return null;
     }
@@ -180,6 +198,20 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         return null;
     }
 
+    @Override
+    public Void visitClassDecl(Stmt.ClassDecl classDecl) {
+        define( classDecl.name() );
+        beginScope();
+        // this is safe to add, since there is
+        // no way a user can define an identifier
+        // named 'this', since this itself is a token.
+        declarations.peek().add("this");
+            for(var decl : classDecl.methodsDecls())
+                evaluate(decl);
+        endScope();
+        return null;
+    }
+
     private void define(Token name){
         // global scope c:
         if( declarations.empty() ) return;
@@ -209,15 +241,20 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         currFunctionType = type;
 
         beginScope();
-        for(var name : params )
-            define(name);
-        for(var stmt : body )
-            evaluate(stmt);
+            for(var name : params )
+                define(name);
+            for(var stmt : body )
+                evaluate(stmt);
         endScope();
 
         currFunctionType = previous;
     }
 
+
+    private void resolve(Token name){
+        var scope = this.findScope(name);
+        distanceToDeclaration.put( name, scope );
+    }
 
     private void beginScope(){
         declarations.push(new HashSet<>());

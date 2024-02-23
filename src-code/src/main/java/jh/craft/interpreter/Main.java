@@ -13,7 +13,7 @@ import java.nio.file.Path;
 public class Main {
     public static void main(String[] args) {
 
-        if( args.length == 0)
+        if( args.length == 0 )
             runPrompt();
         else if( args.length == 1 )
             runFile( args[0] );

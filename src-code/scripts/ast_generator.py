@@ -59,6 +59,9 @@ def main():
         'Logical'  : 'Expr left, Token operator, Expr right',
         'Call'     : 'Expr callee, Token rightParen, List<Expr> arguments',
         'AnonymousFun' : 'List<Token> parameters, List<Stmt> body',
+        'Get'  : 'Expr expression, Token property',
+        'Set'  : 'Expr expression, Token property, Expr value',
+        'ThisExpr' : 'Token keyword',
     })
     
     define_ast('Stmt', {
@@ -68,8 +71,9 @@ def main():
         'Block'      : 'List<Stmt> body',
         'IfStmt'     : 'Expr condition, Stmt body, Stmt elseStmt',
         'WhileStmt'  : 'Expr condition, Stmt body',
-        'FunctionDecl'   : 'Token name, List<Token> parameters, List<Stmt> body',
-        'ReturnStmt'     : 'Token keyword, Expr value',
+        'FunctionDecl' : 'Token name, List<Token> parameters, List<Stmt> body',
+        'ReturnStmt'   : 'Token keyword, Expr value',
+        'ClassDecl'    : 'Token name, List<FunctionDecl> methodsDecls',
     })
 
 

@@ -16,6 +16,17 @@ public class LoxFunction implements LoxCallable {
         this.declaration = declaration;
     }
 
+
+    public LoxFunction bind(LoxInstance object){
+        var env = new Environment( closure );
+        env.define("this", object);
+        return new LoxFunction(env, declaration);
+    }
+
+    public String name(){
+       return declaration.name().lexeme();
+    }
+
     @Override
     public int arity() {
         return declaration.parameters().size();
@@ -54,6 +65,12 @@ public class LoxFunction implements LoxCallable {
         public AnonymousFunction(Environment closure, Expr.AnonymousFun declaration) {
             // TODO: fix this later
             super(closure, new Stmt.FunctionDecl(null, declaration.parameters(), declaration.body()));
+        }
+
+
+        @Override
+        public String name() {
+            return "";
         }
 
         @Override

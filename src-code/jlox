@@ -5,8 +5,8 @@ set -e
 case "$1" in
     -b|--build)
         echo "-> building jlox"
-        ./gradlew build
         ./scripts/ast_generator.py
+        ./gradlew build
         shift
     ;;
 esac

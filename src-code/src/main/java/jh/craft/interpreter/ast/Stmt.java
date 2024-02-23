@@ -15,6 +15,7 @@ public interface Stmt {
         T visitWhileStmt( WhileStmt whileStmt );
         T visitFunctionDecl( FunctionDecl functionDecl );
         T visitReturnStmt( ReturnStmt returnStmt );
+        T visitClassDecl( ClassDecl classDecl );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -72,6 +73,13 @@ public interface Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitReturnStmt( this );
+        }
+    }
+
+    record ClassDecl( Token name, List<FunctionDecl> methodsDecls ) implements Stmt {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitClassDecl( this );
         }
     }
 

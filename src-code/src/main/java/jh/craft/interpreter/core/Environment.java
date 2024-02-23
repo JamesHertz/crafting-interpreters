@@ -22,17 +22,17 @@ public class Environment {
     public void declare(Token name){
         values.put( name.lexeme(), NO_VALUE );
     }
-    public void initialize(Token name, Object value){
-        var identifier = name.lexeme();
-
-        if( values.containsKey( name.lexeme() ) ){
-            throw new LoxError(
-                    name, String.format("'%s' was already defined.", identifier)
-            );
-        }
-
-        values.put( identifier, value );
-    }
+//    public void define(Token name, Object value){
+//        var identifier = name.lexeme();
+//
+//        if( values.containsKey( name.lexeme() ) ){
+//            throw new LoxError(
+//                    name, String.format("'%s' was already defined.", identifier)
+//            );
+//        }
+//
+//        values.put( identifier, value );
+//    }
 
     public void define(String name, Object value){
         values.put( name, value );

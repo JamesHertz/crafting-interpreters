@@ -16,6 +16,9 @@ public interface Expr {
         T visitLogical( Logical logical );
         T visitCall( Call call );
         T visitAnonymousFun( AnonymousFun anonymousFun );
+        T visitGet( Get get );
+        T visitSet( Set set );
+        T visitThisExpr( ThisExpr thisExpr );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -80,6 +83,27 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitAnonymousFun( this );
+        }
+    }
+
+    record Get( Expr expression, Token property ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitGet( this );
+        }
+    }
+
+    record Set( Expr expression, Token property, Expr value ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitSet( this );
+        }
+    }
+
+    record ThisExpr( Token keyword ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitThisExpr( this );
         }
     }
 

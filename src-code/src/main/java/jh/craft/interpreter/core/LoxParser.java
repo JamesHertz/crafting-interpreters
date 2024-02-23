@@ -38,13 +38,28 @@ public class LoxParser {
     }
 
     private Stmt declaration(){
+        if(match(CLASS)) return classDecl();
         if(match(VAR)) return varDecl();
         if(!checkNext(LEFT_PAREN) && match(FUN))
             return funDecl();
         return statement();
     }
 
-    private Stmt funDecl(){
+    private Stmt classDecl() {
+        var name = consume(IDENTIFIER, "Expected an class name after 'class' keyword.");
+        consume(LEFT_BRACE, "Expected '{' after class name.");
+
+        var methods = new ArrayList<Stmt.FunctionDecl>();
+        while(!check(RIGHT_BRACE) && !isAtEnd()){
+            // TODO: look at this c:
+            methods.add( funDecl() );
+        }
+        consume(RIGHT_BRACE, "Expected enclosing '}' after class declaration.");
+
+        return new Stmt.ClassDecl(name, methods);
+    }
+
+    private Stmt.FunctionDecl funDecl(){
         // TODO: pay attention to the names later c:
         var name = consume(IDENTIFIER, "Expected function identifier");
         var sig = funSignature();
@@ -181,7 +196,7 @@ public class LoxParser {
 
     private List<Stmt> block(){
         List<Stmt> body = new ArrayList<>();
-        while( !check(RIGHT_BRACE) ){
+        while( !check(RIGHT_BRACE) && !isAtEnd() ){
             body.add( declaration() );
         }
         consume(RIGHT_BRACE, "Expected a '}'.");
@@ -218,32 +233,17 @@ public class LoxParser {
                 MINUS_EQUAL, STAR_EQUAL
         )){
             var op = this.previous();
-            var value = assigment();
+            var value = parseLeftSide(
+                    expr, op, assigment()
+            );
 
             if(expr instanceof Expr.Variable variable ){
-                value = switch (op.type()){
-                    case PLUS_EQUAL -> new Expr.Binary(
-                            variable, Token.from(op, PLUS), value
-                    );
-
-                    case SLASH_EQUAL -> new Expr.Binary(
-                            variable, Token.from(op, SLASH), value
-                    );
-
-                    case MINUS_EQUAL -> new Expr.Binary(
-                            variable, Token.from(op, MINUS), value
-                    );
-
-                    case STAR_EQUAL -> new Expr.Binary(
-                            variable, Token.from(op, STAR), value
-                    );
-
-                    // case EQUAL ...
-                    default -> value;
-                };
-
                 return new Expr.Assign(
                         variable.name(), value
+                );
+            } else if(expr instanceof Expr.Get get){
+                return new Expr.Set(
+                        get.expression(), get.property(), value
                 );
             }
 
@@ -254,6 +254,30 @@ public class LoxParser {
 
         return expr;
     }
+
+    private Expr parseLeftSide(Expr left, Token operator, Expr right){
+        return switch (operator.type()){
+            case PLUS_EQUAL -> new Expr.Binary(
+                    left, Token.from(operator, PLUS), right
+            );
+
+            case SLASH_EQUAL -> new Expr.Binary(
+                    left, Token.from(operator, SLASH), right
+            );
+
+            case MINUS_EQUAL -> new Expr.Binary(
+                    left, Token.from(operator, MINUS), right
+            );
+
+            case STAR_EQUAL -> new Expr.Binary(
+                    left, Token.from(operator, STAR), right
+            );
+
+            // case EQUAL ...
+            default -> right;
+        };
+    }
+
 
     private Expr or() {
         var expr = and();
@@ -344,27 +368,41 @@ public class LoxParser {
 
     private Expr call(){
         var expr = primary();
-        if(match(LEFT_PAREN)) {
-            var arguments = new ArrayList<Expr>();
-
-            if( !check(RIGHT_PAREN) ){
-                do{
-                    if(arguments.size() > MAX_PARAMETERS){
-                        throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " arguments");
-                    }
-                    arguments.add( expression() );
-                }while(match(COMMA));
-            }
-
-            var paren = consume(RIGHT_PAREN, "Expected enclosing ')' after arguments.");
-            expr = new Expr.Call(
-                    expr, paren, arguments
-            );
+        while(true) {
+            if(match(LEFT_PAREN)){
+                expr = endCall(expr);
+            } else if(match(DOT)){
+                var property = consume(
+                        IDENTIFIER, "Expected an identifier after '.'"
+                );
+                expr = new Expr.Get(
+                        expr, property
+                );
+            } else
+                break;
         }
 
         return expr;
     }
 
+
+    private Expr endCall(Expr expr){
+        var arguments = new ArrayList<Expr>();
+
+        if( !check(RIGHT_PAREN) ){
+            do{
+                if(arguments.size() > MAX_PARAMETERS){
+                    throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " arguments");
+                }
+                arguments.add( expression() );
+            }while(match(COMMA));
+        }
+
+        var paren = consume(RIGHT_PAREN, "Expected enclosing ')' after arguments.");
+        return new Expr.Call(
+                expr, paren, arguments
+        );
+    }
 
 
     private Expr primary(){
@@ -374,6 +412,7 @@ public class LoxParser {
             case NIL   -> new Expr.Literal( null );
             case TRUE  -> new Expr.Literal( true );
             case FALSE -> new Expr.Literal( false );
+            case THIS  -> new Expr.ThisExpr( previous() );
             case LEFT_PAREN -> {
                 var expr = expression();
                 if( match( RIGHT_PAREN ) ){

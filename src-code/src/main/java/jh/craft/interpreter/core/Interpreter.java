@@ -153,9 +153,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitVariable(Expr.Variable variable) {
-        var name = variable.name();
-        var scopeWalk = declarationDistances.get( variable.name() );
-        return currentEnv.value( name, scopeWalk );
+        return resolve(variable.name());
     }
 
     @Override
@@ -222,7 +220,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if(initializer == null)
             currentEnv.declare( var.name() );
         else
-            currentEnv.initialize( var.name(), evaluate(initializer) );
+            currentEnv.define( var.name().lexeme(), evaluate(initializer) );
         return null;
     }
 
@@ -269,6 +267,27 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitClassDecl(Stmt.ClassDecl classDecl) {
+        var declarations = classDecl.methodsDecls();
+
+        var methods = new ArrayList<LoxFunction>( declarations.size() );
+        for( var decl : declarations ){
+            methods.add(new LoxFunction(
+                    currentEnv, decl
+            ));
+        }
+
+        var className = classDecl.name();
+        var klass = new LoxClass(
+                className.lexeme(), methods
+        );
+
+        // TODO: think about this ...
+        currentEnv.define(className.lexeme(), klass);
+        return null;
+    }
+
+    @Override
     public Object visitCall(Expr.Call call) {
         var callee = evaluate( call.callee() );
         if(!(callee instanceof LoxCallable function)){
@@ -281,7 +300,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if(function.arity() != arguments.size()){
             throw new LoxError(
                     call.rightParen(), String.format(
-                            "Expected '%d' arguments but got '%d'.", function.arity(), arguments.size()
+                            "Expected %d arguments but got %d.", function.arity(), arguments.size()
                     )
             );
         }
@@ -298,4 +317,46 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return new LoxFunction.AnonymousFunction(currentEnv, anonymousFun);
     }
 
+    @Override
+    public Object visitGet(Expr.Get get) {
+        var result = evaluate( get.expression() );
+
+        if(!(result instanceof LoxInstance instance)){
+            throw new LoxError(
+                    get.property(), String.format(
+                          "Can only get property from class instances not from '%s'.", result
+                    )
+            );
+        }
+
+        return instance.get( get.property() );
+    }
+
+    @Override
+    public Object visitSet(Expr.Set set) {
+        var result = evaluate(set.expression());
+        if(!(result instanceof LoxInstance instance)){
+            throw new LoxError(
+                    set.property(), String.format(
+                        "Can only get property from class instances not from '%s'.", result
+                    )
+            );
+        }
+
+        var value = evaluate(set.value());
+        var prop = set.property();
+        instance.set( prop.lexeme(), value);
+        return null;
+    }
+
+    @Override
+    public Object visitThisExpr(Expr.ThisExpr thisExpr) {
+        return resolve(thisExpr.keyword());
+    }
+
+
+    public Object resolve(Token name){
+        var walk = declarationDistances.get( name );
+        return currentEnv.value( name, walk );
+    }
 }
