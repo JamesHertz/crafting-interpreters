@@ -1,6 +1,6 @@
 # Crafting an Interpreter
 
-This is just me following along with the implementation of two interpreters from this [book](https://craftinginterpreters.com/). My implementation is not exactly the same as the one provided by the book repo. I also added some features that were suggested on the challenges at the end of the chapters.
+This is just me following along with the implementation of two interpreters from this [book](https://craftinginterpreters.com/). My implementation is not exactly the same as the one provided by the [*book repo*](https://github.com/munificent/craftinginterpreters). I also added some features that were suggested on the challenges at the end of the chapters.
 
 # Folder structure
 As you might already notice there are two folders on the root of this repository, as listed below.
