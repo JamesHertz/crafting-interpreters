@@ -15,15 +15,17 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     private final Stack<Set<String>> declarations;
     private final LoxErrorReporter reporter;
 
-    //
-    private FunctionType currFunctionType;
+    // flags
+    private FunctionType funScope;
+    private ClassType classScope;
 
     public LoxStaticAnalyst(LoxErrorReporter reporter) {
         this.reporter = reporter;
         this.declarations = new Stack<>();
         this.distanceToDeclaration = new TreeMap<>(Comparator.comparingInt(System::identityHashCode));
 
-        this.currFunctionType = FunctionType.NONE;
+        this.funScope   = FunctionType.NONE;
+        this.classScope = ClassType.NONE;
     }
 
     public Map<Token, Integer> declarationDistances(List<Stmt> statements) {
@@ -185,7 +187,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
-        if(currFunctionType == FunctionType.NONE){
+        if(funScope == FunctionType.NONE){
             throw new LoxError(
                     returnStmt.keyword(),
                     "Cannot have a return statement outside a function."
@@ -237,8 +239,8 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
 
     private void evalFunction(List<Token> params, List<Stmt> body, FunctionType type){
-        var previous = currFunctionType;
-        currFunctionType = type;
+        var previous = funScope;
+        funScope = type;
 
         beginScope();
             for(var name : params )
@@ -247,7 +249,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 evaluate(stmt);
         endScope();
 
-        currFunctionType = previous;
+        funScope = previous;
     }
 
 
@@ -264,9 +266,25 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         declarations.pop();
     }
 
+    // TODO: think about how to handle this c:
     private enum FunctionType{
         NONE,
         METHOD,
         FUNCTION;
+    }
+
+    private enum ClassType{
+        NONE,
+        NORMAL,
+        SUB_CLASS;
+    };
+
+
+    private static class Flags{
+        int functionDepth, classDepth;
+
+        boolean inFunction(){
+            return false;
+        }
     }
 }
