@@ -14,7 +14,7 @@
 <function>     ::= IDENTIFIER <funSignature>
 <funSignature> ::= "(" [<parameters>] ")" <blockStmt>
 <parameters>   ::= IDENTIFIER [{ "," IDENTIFIER }]
-<classDecl>    ::= "class" IDENTIFIER "{" [{<function>}]  "}"
+<classDecl>    ::= "class" IDENTIFIER [ "<" IDENTIFIER ]"{" [{<function>}]  "}"
 
 // statements
 <statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt> | <returnStmt>

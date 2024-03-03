@@ -73,7 +73,7 @@ def main():
         'WhileStmt'  : 'Expr condition, Stmt body',
         'FunctionDecl' : 'Token name, List<Token> parameters, List<Stmt> body',
         'ReturnStmt'   : 'Token keyword, Expr value',
-        'ClassDecl'    : 'Token name, List<FunctionDecl> methodsDecls',
+        'ClassDecl'    : 'Token name, Token superClass, List<FunctionDecl> methodsDecls',
     })
 
 

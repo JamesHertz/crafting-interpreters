@@ -14,7 +14,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     private final Map<Token, Integer> distanceToDeclaration;
     private final Stack<Set<String>> declarations;
     private final LoxErrorReporter reporter;
-    private final Flags flags;
+    private final Context ctx;
 
 
     public LoxStaticAnalyst(LoxErrorReporter reporter) {
@@ -22,7 +22,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         this.declarations = new Stack<>();
         this.distanceToDeclaration = new TreeMap<>(Comparator.comparingInt(System::identityHashCode));
 
-        this.flags = new Flags();
+        this.ctx = new Context();
     }
 
     public Map<Token, Integer> declarationDistances(List<Stmt> statements) {
@@ -120,7 +120,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitThisExpr(Expr.ThisExpr thisExpr) {
-        if( flags.inMethod() )
+        if( ctx.inMethod() )
             resolve( thisExpr.keyword() );
         else {
             reporter.report(new LoxError(
@@ -128,8 +128,6 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 "'this' keyword should not be used outside a method."
             ));
         }
-
-
 
         return null;
     }
@@ -183,17 +181,19 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitFunctionDecl(Stmt.FunctionDecl functionDecl) {
         define(functionDecl.name());
+
         evalFunction(
                 functionDecl.parameters(),
                 functionDecl.body()
         );
+
         return null;
     }
 
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
 
-        if(flags.inFunction()) {
+        if(ctx.inFunction()) {
             if(returnStmt.value() != null)
                 evaluate(returnStmt.value());
         } else {
@@ -211,7 +211,10 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     public Void visitClassDecl(Stmt.ClassDecl classDecl) {
         define( classDecl.name() );
 
-        flags.beginClass();
+        var prevClassCtx = ctx.swapCtx(
+                ClassContext.NORMAL
+        );
+
         beginScope();
 
             // this is safe to add, since there is
@@ -221,7 +224,9 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 for(var decl : classDecl.methodsDecls())
                     evaluate(decl);
         endScope();
-        flags.endClass();
+
+        // restore context c:
+        ctx.swapCtx(prevClassCtx);
 
         return null;
     }
@@ -233,10 +238,11 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         var current = declarations.peek();
         var identifier = name.lexeme();
 
-        if( !current.add(identifier) )
+        if( !current.add(identifier) ){
             reporter.report(new LoxError(
-                name, String.format("Identifier '%s' already defined.", identifier)
+                    name, String.format("Identifier '%s' already defined.", identifier)
             ));
+        }
     }
 
     private int findScope(Token name){
@@ -251,7 +257,9 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
 
     private void evalFunction(List<Token> params, List<Stmt> body){
-        flags.beginFun();
+        var prev = ctx.swapCtx(
+                FunContext.NORMAL
+        );
 
         beginScope();
             for(var name : params )
@@ -260,7 +268,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 evaluate(stmt);
         endScope();
 
-        flags.endFun();
+        ctx.swapCtx( prev );
     }
 
 
@@ -277,29 +285,56 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         declarations.pop();
     }
 
-    private static class Flags{
-        private int funDepth = 0, classDepth = 0;
 
-        void beginFun(){ funDepth++; }
 
-        void endFun(){ funDepth--; }
+    // this is surely not the best solution,
+    // but it's how far I could get. I also
+    // don't think that the names I used are
+    // so yeah, I will look to this someday
+    private static class Context {
+        ClassContext classCtx;
+        FunContext funCtx;
 
-        void beginClass(){ classDepth++; }
-
-        void endClass(){ classDepth--; }
-
-        boolean inMethod(){
-            return classDepth > 0 && funDepth > 0;
+        Context(){
+            this.classCtx = ClassContext.NONE;
+            this.funCtx   = FunContext.NONE;
         }
 
-        boolean inClass(){
-            return classDepth > 0;
+        ClassContext swapCtx(ClassContext ctx){
+            var prev = classCtx;
+            classCtx = ctx;
+            return prev;
+        }
+
+        FunContext swapCtx(FunContext ctx){
+            var prev = funCtx;
+            funCtx = ctx;
+            return prev;
+        }
+
+        boolean inMethod(){
+            return this.inFunction() &&
+                    classCtx != ClassContext.NONE; // means its a class or a subClass
         }
 
         boolean inFunction(){
-            return funDepth > 0;
+            return funCtx == FunContext.NORMAL;
         }
 
+        // means a method of a sub class
+        boolean inSubMethod(){
+            return this.inFunction()
+                   && classCtx == ClassContext.SUB;
+        }
+
+    }
+
+    private enum ClassContext {
+        NONE, SUB, NORMAL;
+    }
+
+    private enum FunContext {
+        NONE, NORMAL;
     }
 
 }

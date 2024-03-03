@@ -76,7 +76,7 @@ public interface Stmt {
         }
     }
 
-    record ClassDecl( Token name, List<FunctionDecl> methodsDecls ) implements Stmt {
+    record ClassDecl( Token name, Token superClass, List<FunctionDecl> methodsDecls ) implements Stmt {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitClassDecl( this );

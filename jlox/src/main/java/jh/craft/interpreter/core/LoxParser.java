@@ -47,7 +47,12 @@ public class LoxParser {
 
     private Stmt classDecl() {
         var name = consume(IDENTIFIER, "Expected an class name after 'class' keyword.");
-        consume(LEFT_BRACE, "Expected '{' after class name.");
+        Token parent = null;
+
+        if( match(LESS) )
+            parent = consume(IDENTIFIER, "Expected super class name.");
+
+        consume(LEFT_BRACE, "Expected '{' before class body.");
 
         var methods = new ArrayList<Stmt.FunctionDecl>();
         while(!check(RIGHT_BRACE) && !isAtEnd()){
@@ -56,12 +61,11 @@ public class LoxParser {
         }
         consume(RIGHT_BRACE, "Expected enclosing '}' after class declaration.");
 
-        return new Stmt.ClassDecl(name, methods);
+        return new Stmt.ClassDecl(name, parent, methods);
     }
 
     private Stmt.FunctionDecl funDecl(){
-        // TODO: pay attention to the names later c:
-        var name = consume(IDENTIFIER, "Expected function identifier");
+        var name = consume(IDENTIFIER, "Expected function/method identifier.");
         var sig = funSignature();
         return new Stmt.FunctionDecl(
                 name, sig.parameters(), sig.body()
@@ -69,23 +73,22 @@ public class LoxParser {
     }
 
     private Expr.AnonymousFun funSignature(){
-        // TODO: do something about this
-        consume(LEFT_PAREN, "Expected '(' after function identifier");
+        consume(LEFT_PAREN, "Expected '(' after function/method identifier.");
 
         var parameters = new ArrayList<Token>();
         if( !check(RIGHT_PAREN) ){
             do{
                 if(parameters.size() > MAX_PARAMETERS){
-                    throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " parameters");
+                    throw new LoxError(peek(), "Can't have more than " + MAX_PARAMETERS + " parameters.");
                 }
                 parameters.add(
-                        consume(IDENTIFIER, "Expected parameter identifier")
+                        consume(IDENTIFIER, "Expected parameter identifier.")
                 );
             }while(match(COMMA));
         }
 
         consume(RIGHT_PAREN, "Expected enclosing ')' after parameters.");
-        consume(LEFT_BRACE, "Expected '{' before function body");
+        consume(LEFT_BRACE, "Expected '{' before function body.");
         var body = block();
 
         return new Expr.AnonymousFun(
@@ -95,7 +98,7 @@ public class LoxParser {
 
 
     private Stmt varDecl(){
-        consume(IDENTIFIER, "Expected an variable identifier");
+        consume(IDENTIFIER, "Expected an variable identifier.");
         var name = previous();
 
         Expr initializer = null;
@@ -140,7 +143,7 @@ public class LoxParser {
         Expr condition = null;
         if(!check(SEMICOLON))
             condition = expression();
-        consume(SEMICOLON, "Expected ';' after the loop condition");
+        consume(SEMICOLON, "Expected ';' after the loop condition.");
 
         Expr increment = null;
         if(!check(RIGHT_PAREN))
@@ -180,7 +183,7 @@ public class LoxParser {
     }
 
     private Stmt ifStatement(){
-        consume(LEFT_PAREN, "Expected '(' after if.");
+        consume(LEFT_PAREN, "Expected '(' after 'if' keyword.");
         var condition = expression();
         consume(RIGHT_PAREN, "Expected enclosing ')'.");
         var body = statement();
@@ -418,7 +421,7 @@ public class LoxParser {
                 if( match( RIGHT_PAREN ) ){
                     yield new Expr.Grouping( expr );
                 }
-                throw error("Expected ')' :c");
+                throw error("Expected enclosing ')'.");
             }
             case IDENTIFIER -> new Expr.Variable( token );
             case FUN -> funSignature(); // parse anonymous function
