@@ -469,6 +469,7 @@ public class LoxParser {
             if(previous().type() == SEMICOLON )
                 return;
 
+            // TODO: think about when we get a this in the middle of a class c:
             switch (peek().type()){
                 case CLASS:
                 case IF:

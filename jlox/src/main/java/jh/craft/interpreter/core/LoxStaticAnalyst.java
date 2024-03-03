@@ -120,14 +120,17 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitThisExpr(Expr.ThisExpr thisExpr) {
-        if( !flags.inMethod() ){
-            throw new LoxError(
-                    thisExpr.keyword(),
-                    "'this' keyword should not be used outside a method."
-            );
+        if( flags.inMethod() )
+            resolve( thisExpr.keyword() );
+        else {
+            reporter.report(new LoxError(
+                thisExpr.keyword(),
+                "'this' keyword should not be used outside a method."
+            ));
         }
 
-        resolve( thisExpr.keyword() );
+
+
         return null;
     }
 
@@ -190,15 +193,16 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
 
-        if( !flags.inFunction() ){
-            throw new LoxError(
-                    returnStmt.keyword(),
-                    "'return' keyword should not be used outside a function/method."
-            );
+        if(flags.inFunction()) {
+            if(returnStmt.value() != null)
+                evaluate(returnStmt.value());
+        } else {
+            reporter.report(new LoxError(
+                returnStmt.keyword(),
+                "'return' keyword should not be used outside a function/method."
+            ));
         }
 
-        if(returnStmt.value() != null)
-            evaluate(returnStmt.value());
 
         return null;
     }
@@ -230,9 +234,9 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         var identifier = name.lexeme();
 
         if( !current.add(identifier) )
-            throw new LoxError(
-                    name, String.format("Identifier '%s' already defined.", identifier)
-            );
+            reporter.report(new LoxError(
+                name, String.format("Identifier '%s' already defined.", identifier)
+            ));
     }
 
     private int findScope(Token name){
