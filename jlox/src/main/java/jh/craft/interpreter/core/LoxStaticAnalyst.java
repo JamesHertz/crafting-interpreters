@@ -77,7 +77,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitAssign(Expr.Assign assign) {
         evaluate(assign.value());
-        define( assign.name() );
+        resolve( assign.name() );
         return null;
     }
 

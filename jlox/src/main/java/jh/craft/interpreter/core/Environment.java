@@ -38,13 +38,12 @@ public class Environment {
         values.put( name, value );
     }
 
+
+    // TODO: optimize this for globals c:
     public Object value(Token name, int scopeWalk){
         var identifier = name.lexeme();
 
-        Environment env = this;
-        for(int i = scopeWalk; i > 0 ; i--)
-            env = env.parent;
-
+        var env = ancestor(scopeWalk);
         var values = env.values;
         if(values.containsKey( identifier )){
             var value = values.get(identifier);
@@ -60,18 +59,27 @@ public class Environment {
         );
     }
 
-    public void assign(Token name, Object value){
+    public void assign(Token name, int walk, Object value){
         var identifier = name.lexeme();
+
+        var values = ancestor(walk).values;
 
         if(values.containsKey( identifier ))
             values.put( identifier , value );
-        else if( parent != null )
-            parent.assign( name, value );
         else {
             throw new LoxError(
                     name.line(), name.position(),
                     String.format("'%s' not defined.", identifier)
             );
         }
+    }
+
+
+
+    private Environment ancestor(int distance){
+        Environment env = this;
+        for(int i = distance; i > 0 ; i--)
+            env = env.parent;
+        return env;
     }
 }

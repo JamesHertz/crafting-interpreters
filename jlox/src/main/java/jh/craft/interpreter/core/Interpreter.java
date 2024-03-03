@@ -159,8 +159,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Object visitAssign(Expr.Assign assign) {
         var value = evaluate(assign.value());
+        var walk = declarationDistances.get( assign.name() );
         currentEnv.assign(
-                assign.name(), value
+                assign.name(), walk, value
         );
         return null;
     }
