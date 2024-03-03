@@ -61,7 +61,8 @@ def main():
         'AnonymousFun' : 'List<Token> parameters, List<Stmt> body',
         'Get'  : 'Expr expression, Token property',
         'Set'  : 'Expr expression, Token property, Expr value',
-        'ThisExpr' : 'Token keyword',
+        'ThisExpr'  : 'Token keyword',
+        'SuperExpr' : 'Token keyword, Token identifier',
     })
     
     define_ast('Stmt', {

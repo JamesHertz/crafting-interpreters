@@ -133,6 +133,18 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     }
 
     @Override
+    public Void visitSuperExpr(Expr.SuperExpr superExpr) {
+        if( !ctx.inSubMethod() ){
+            reporter.report(new LoxError(
+                    superExpr.keyword(),
+                    "'super' keyword should not be used outside a subclass."
+            ));
+        }
+
+        return null;
+    }
+
+    @Override
     public Void visitExpression(Stmt.Expression expression) {
         evaluate(expression.expression());
         return null;
@@ -217,12 +229,23 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
         beginScope();
 
+
+        if(classDecl.superClass() != null){
+            beginScope();
+            declarations.peek().add("super");
+            ctx.swapCtx(ClassContext.SUB);
+        }
+
             // this is safe to add, since there is
             // no way a user can define an identifier
             // named 'this', since this itself is a token.
             declarations.peek().add("this");
                 for(var decl : classDecl.methodsDecls())
                     evaluate(decl);
+
+       if(classDecl.superClass() != null)
+           endScope();
+
         endScope();
 
         // restore context c:

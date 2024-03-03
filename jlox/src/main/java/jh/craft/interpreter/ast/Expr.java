@@ -19,6 +19,7 @@ public interface Expr {
         T visitGet( Get get );
         T visitSet( Set set );
         T visitThisExpr( ThisExpr thisExpr );
+        T visitSuperExpr( SuperExpr superExpr );
     }
 
     <T> T accept( Visitor<T> visitor );
@@ -104,6 +105,13 @@ public interface Expr {
         @Override
         public <T> T accept( Visitor<T> visitor ){ 
             return visitor.visitThisExpr( this );
+        }
+    }
+
+    record SuperExpr( Token keyword, Token identifier ) implements Expr {
+        @Override
+        public <T> T accept( Visitor<T> visitor ){ 
+            return visitor.visitSuperExpr( this );
         }
     }
 

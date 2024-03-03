@@ -425,6 +425,14 @@ public class LoxParser {
             }
             case IDENTIFIER -> new Expr.Variable( token );
             case FUN -> funSignature(); // parse anonymous function
+            case SUPER -> {
+                var keyword = previous();
+                consume(DOT, "Expected a '.' after 'super' keyword");
+                yield new Expr.SuperExpr(
+                        keyword, consume(IDENTIFIER, "Expected an identifier.")
+                );
+            }
+
             default -> {
                 throw error("Expected an expression :c");
             }

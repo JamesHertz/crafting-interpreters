@@ -29,7 +29,9 @@
 
 // expressions c:
 <expression> ::= <assigment>
-<assigment>  ::= [ <call> "." ] IDENTIFIER "=" <assigment> | <logical_or>
+<assigment>  ::= [ <call> "." ] IDENTIFIER <assigmentSign> <assigment> | <logical_or>
+
+<assigmentSign> ::=  "=" | "+=" | "-=" | "*=" | "/="
 
 <logical_or>  ::= <logical_and> [{ "||" <logical_or> }]
 <logical_and> ::= <equality> [{ "||" <logical_and> }]
@@ -46,6 +48,7 @@
 <primary> ::= "(" <expression> ")" | "false" | "true"
            | "nil" | NUMBER | STRING | IDENTIFIER | THIS
            | <anonymousFunDecl>
+           | SUPER "." IDENTIFIER
 
 <anonymousFunDecl> ::= "fun" <funSignature>
 

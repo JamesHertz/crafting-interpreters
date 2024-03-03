@@ -354,6 +354,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return resolve(thisExpr.keyword());
     }
 
+    @Override
+    public Object visitSuperExpr(Expr.SuperExpr superExpr) {
+        var inst = this.resolve( superExpr.keyword() );
+        return ( (LoxInstance) inst).get( superExpr.identifier() );
+    }
+
 
     public Object resolve(Token name){
         var walk = declarationDistances.get( name );
