@@ -14,18 +14,15 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     private final Map<Token, Integer> distanceToDeclaration;
     private final Stack<Set<String>> declarations;
     private final LoxErrorReporter reporter;
+    private final Flags flags;
 
-    // flags
-    private FunctionType funScope;
-    private ClassType classScope;
 
     public LoxStaticAnalyst(LoxErrorReporter reporter) {
         this.reporter = reporter;
         this.declarations = new Stack<>();
         this.distanceToDeclaration = new TreeMap<>(Comparator.comparingInt(System::identityHashCode));
 
-        this.funScope   = FunctionType.NONE;
-        this.classScope = ClassType.NONE;
+        this.flags = new Flags();
     }
 
     public Map<Token, Integer> declarationDistances(List<Stmt> statements) {
@@ -103,8 +100,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     public Void visitAnonymousFun(Expr.AnonymousFun anonymousFun) {
         evalFunction(
                 anonymousFun.parameters(),
-                anonymousFun.body(),
-                FunctionType.FUNCTION
+                anonymousFun.body()
         );
         return null;
     }
@@ -124,6 +120,13 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitThisExpr(Expr.ThisExpr thisExpr) {
+        if( !flags.inMethod() ){
+            throw new LoxError(
+                    thisExpr.keyword(),
+                    "'this' keyword should not be used outside a method."
+            );
+        }
+
         resolve( thisExpr.keyword() );
         return null;
     }
@@ -179,18 +182,18 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         define(functionDecl.name());
         evalFunction(
                 functionDecl.parameters(),
-                functionDecl.body(),
-                FunctionType.FUNCTION
+                functionDecl.body()
         );
         return null;
     }
 
     @Override
     public Void visitReturnStmt(Stmt.ReturnStmt returnStmt) {
-        if(funScope == FunctionType.NONE){
+
+        if( !flags.inFunction() ){
             throw new LoxError(
                     returnStmt.keyword(),
-                    "Cannot have a return statement outside a function."
+                    "'return' keyword should not be used outside a function/method."
             );
         }
 
@@ -203,14 +206,19 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     @Override
     public Void visitClassDecl(Stmt.ClassDecl classDecl) {
         define( classDecl.name() );
+
+        flags.beginClass();
         beginScope();
-        // this is safe to add, since there is
-        // no way a user can define an identifier
-        // named 'this', since this itself is a token.
-        declarations.peek().add("this");
-            for(var decl : classDecl.methodsDecls())
-                evaluate(decl);
+
+            // this is safe to add, since there is
+            // no way a user can define an identifier
+            // named 'this', since this itself is a token.
+            declarations.peek().add("this");
+                for(var decl : classDecl.methodsDecls())
+                    evaluate(decl);
         endScope();
+        flags.endClass();
+
         return null;
     }
 
@@ -238,9 +246,8 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
     }
 
 
-    private void evalFunction(List<Token> params, List<Stmt> body, FunctionType type){
-        var previous = funScope;
-        funScope = type;
+    private void evalFunction(List<Token> params, List<Stmt> body){
+        flags.beginFun();
 
         beginScope();
             for(var name : params )
@@ -249,7 +256,7 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 evaluate(stmt);
         endScope();
 
-        funScope = previous;
+        flags.endFun();
     }
 
 
@@ -266,25 +273,29 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
         declarations.pop();
     }
 
-    // TODO: think about how to handle this c:
-    private enum FunctionType{
-        NONE,
-        METHOD,
-        FUNCTION;
-    }
-
-    private enum ClassType{
-        NONE,
-        NORMAL,
-        SUB_CLASS;
-    };
-
-
     private static class Flags{
-        int functionDepth, classDepth;
+        private int funDepth = 0, classDepth = 0;
+
+        void beginFun(){ funDepth++; }
+
+        void endFun(){ funDepth--; }
+
+        void beginClass(){ classDepth++; }
+
+        void endClass(){ classDepth--; }
+
+        boolean inMethod(){
+            return classDepth > 0 && funDepth > 0;
+        }
+
+        boolean inClass(){
+            return classDepth > 0;
+        }
 
         boolean inFunction(){
-            return false;
+            return funDepth > 0;
         }
+
     }
+
 }

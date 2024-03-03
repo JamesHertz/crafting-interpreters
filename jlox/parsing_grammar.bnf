@@ -1,11 +1,11 @@
 // Here I list the context free grammar for the java implementation
 // of the Lox programming Language in Backus–Naur form (BNF) following
 // the rules here: https://palle-k.github.io/Covfefe/bnf.html
-// * => {[]}
+// * => [{}]
 // + => {}
 // ? => []
 
-<program> ::= {[<declaration>]} "EOF"
+<program> ::= [{<declaration>}] "EOF"
 
 // declarations
 <declaration>  ::= <statement> | <varDecl> | <funDecl> | <classDecl>
@@ -13,15 +13,15 @@
 <funDecl>      ::= "fun" <function>
 <function>     ::= IDENTIFIER <funSignature>
 <funSignature> ::= "(" [<parameters>] ")" <blockStmt>
-<parameters>   ::= IDENTIFIER {[ "," IDENTIFIER ]}
-<classDecl>    ::= "class" IDENTIFIER "{" {[<function>]}  "}"
+<parameters>   ::= IDENTIFIER [{ "," IDENTIFIER }]
+<classDecl>    ::= "class" IDENTIFIER "{" [{<function>}]  "}"
 
 // statements
 <statement> ::= <exprStmt> | <printStmt> | <blockStmt> | <ifStmt> | <whileStmt> | <forStmt> | <returnStmt>
 
 <exprStmt>   ::=  expression ";"
 <printStmt>  ::=  "print" expression ";"
-<blockStmt>  ::=  "{" declaration* "}"
+<blockStmt>  ::=  "{" [{declaration}] "}"
 <ifStmt>     ::= "if" "(" <expression> ")" <statement> ["else" <statement> ]
 <whileStmt>  ::= "while" "(" <expression> ")" <statement>
 <forStmt>    ::= "for" "(" ( <varDecl> | <exprStmt> | ";" )  [<expression>] ";" [<expression>] ")" <statement>
@@ -31,17 +31,17 @@
 <expression> ::= <assigment>
 <assigment>  ::= [ <call> "." ] IDENTIFIER "=" <assigment> | <logical_or>
 
-<logical_or>  ::= <logical_and> {[ "||" <logical_or> ]}
-<logical_and> ::= <equality> {[ "||" <logical_and> ]}
+<logical_or>  ::= <logical_and> [{ "||" <logical_or> }]
+<logical_and> ::= <equality> [{ "||" <logical_and> }]
 
-<equality> ::= <comparison> {[ ( "==" | "!=" ) <equality> ]}
-<comparison> ::= <term> {[ ( ">"| ">=" | "<"| "<=" ) <comparison> ]}
-<term>   ::= <factor> {[ ( "+" | "-" ) <term> ]}
-<factor> ::= <unary> {[ ( "*" | "/" ) factor  ]}
+<equality> ::= <comparison> [{ ( "==" | "!=" ) <equality> }]
+<comparison> ::= <term> [{ ( ">"| ">=" | "<"| "<=" ) <comparison> }]
+<term>   ::= <factor> [{ ( "+" | "-" ) <term> }]
+<factor> ::= <unary> [{ ( "*" | "/" ) factor  }]
 
 <unary>   ::= <call> | ( "-" | "!" ) <unary>
-<call>    ::= <primary> {[ ( "(" [<arguments>] ")" ) | ( "." IDENTIFIER ) ]}
-<arguments> ::= <expression> {[ "," <expression> ]}
+<call>    ::= <primary> [{ ( "(" [<arguments>] ")" ) | ( "." IDENTIFIER ) }]
+<arguments> ::= <expression> [{ "," <expression> }]
 
 <primary> ::= "(" <expression> ")" | "false" | "true"
            | "nil" | NUMBER | STRING | IDENTIFIER | THIS
