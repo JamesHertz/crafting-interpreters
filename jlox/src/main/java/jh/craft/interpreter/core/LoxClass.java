@@ -11,8 +11,10 @@ public class LoxClass implements LoxCallable {
     private final String name;
     private final Map<String, LoxFunction> classMethods;
     private final LoxCallable constructor;
-    public LoxClass(String name, List<LoxFunction> methods) {
+    private final LoxClass superClass;
+    public LoxClass(String name, LoxClass superClass, List<LoxFunction> methods) {
         this.name = name;
+        this.superClass = superClass;
         this.classMethods = new HashMap<>();
 
         for(var m : methods)
@@ -40,7 +42,15 @@ public class LoxClass implements LoxCallable {
     }
 
     LoxFunction findMethod(String name){
-        return classMethods.get( name );
+        if(classMethods.containsKey(name)){
+            return classMethods.get( name );
+        }
+
+        if(superClass != null){
+            return superClass.findMethod(name);
+        }
+
+        return null;
     }
 
     public String name() {

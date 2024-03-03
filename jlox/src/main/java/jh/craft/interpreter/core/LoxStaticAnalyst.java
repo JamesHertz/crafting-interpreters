@@ -134,12 +134,15 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
 
     @Override
     public Void visitSuperExpr(Expr.SuperExpr superExpr) {
-        if( !ctx.inSubMethod() ){
+        if( ctx.inSubMethod() ){
+            resolve( superExpr.keyword() );
+        } else {
             reporter.report(new LoxError(
                     superExpr.keyword(),
                     "'super' keyword should not be used outside a subclass."
             ));
         }
+
 
         return null;
     }
@@ -227,26 +230,43 @@ public class LoxStaticAnalyst implements Expr.Visitor<Void>, Stmt.Visitor<Void>{
                 ClassContext.NORMAL
         );
 
-        beginScope();
+        var superToken = classDecl.superClass();
+
+        if(superToken != null){
+            resolve(superToken);
+
+            var className = classDecl.name().lexeme();
+            if(className.equals( superToken.lexeme() )){
+                reporter.report(new LoxError(
+                        superToken,
+                        "A class cannot inherit itself."
+                ));
+            }
+        }
 
 
-        if(classDecl.superClass() != null){
+        if(superToken != null){
             beginScope();
             declarations.peek().add("super");
             ctx.swapCtx(ClassContext.SUB);
         }
 
-            // this is safe to add, since there is
-            // no way a user can define an identifier
-            // named 'this', since this itself is a token.
-            declarations.peek().add("this");
-                for(var decl : classDecl.methodsDecls())
-                    evaluate(decl);
+        beginScope();
+
+        // this is safe to add, since there is
+        // no way a user can define an identifier
+        // named 'this', since this itself is a token.
+        declarations.peek().add("this");
+
+
+       for(var decl : classDecl.methodsDecls())
+           evaluate(decl);
+
+       endScope();
 
        if(classDecl.superClass() != null)
            endScope();
 
-        endScope();
 
         // restore context c:
         ctx.swapCtx(prevClassCtx);

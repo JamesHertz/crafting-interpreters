@@ -269,17 +269,33 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     @Override
     public Void visitClassDecl(Stmt.ClassDecl classDecl) {
         var declarations = classDecl.methodsDecls();
+        var env = currentEnv;
+
+        Object superClass = null;
+        if(classDecl.superClass() != null ){
+            superClass = resolve( classDecl.superClass() );
+            if(!(superClass instanceof LoxClass)){
+                throw new LoxError(
+                        classDecl.superClass(),
+                        "Super class should be a class."
+                );
+            }
+
+            env = new Environment(env);
+            env.define("super", superClass);
+        }
+
 
         var methods = new ArrayList<LoxFunction>( declarations.size() );
         for( var decl : declarations ){
             methods.add(new LoxFunction(
-                    currentEnv, decl
+                    env, decl
             ));
         }
 
         var className = classDecl.name();
         var klass = new LoxClass(
-                className.lexeme(), methods
+                className.lexeme(), (LoxClass) superClass, methods
         );
 
         // TODO: think about this ...
@@ -356,8 +372,18 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitSuperExpr(Expr.SuperExpr superExpr) {
-        var inst = this.resolve( superExpr.keyword() );
-        return ( (LoxInstance) inst).get( superExpr.identifier() );
+        int distance = declarationDistances.get( superExpr.keyword() );
+
+        var superClass = (LoxClass) currentEnv.value(superExpr.keyword(), distance);
+        var mocking = new Token(TokenType.THIS, "this", null, 0, 0);
+        var inst = (LoxInstance) currentEnv.value(mocking, distance - 1);
+
+        var method = superClass.findMethod(
+                superExpr.identifier()
+                         .lexeme()
+        );
+
+        return method.bind(inst);
     }
 
 
