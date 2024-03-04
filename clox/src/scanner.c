@@ -31,12 +31,32 @@ static inline token_t make_error(const scanner_t * scan, const char * msg){
     };
 }
 
-static void skipspaces(scanner_t * scan){
-    // TO BE COMPLETED
-}
-
 static inline char advance(scanner_t * scan){
     return *scan->current++;
+}
+
+static void skipspaces(scanner_t * scan){
+    for(;;){
+        char next = peek(scan);
+        switch (next) {
+            case '\n':
+                scan->line++;
+            case '\t':
+            case ' ':
+            case '\r':
+                advance(scan);
+            break;
+
+            case '/':
+                if(check(scan, '/')){
+                    while(!check(scan, '\n')) 
+                        advance(scan);
+                }
+                break;
+            default:
+                return;
+        }
+    }
 }
 
 static char peek(const scanner_t * scan){
@@ -79,15 +99,13 @@ void scanner_init(scanner_t * scan, const char * source){
 }
 
 token_t scanner_next_token(scanner_t * scan){
+    // skip comments c:
+    skipspaces(scan);
 
     if(isover(scan))
         return make_token(scan, TOKEN_EOF);
 
-    // skip comments c:
-    skipspaces(scan);
-
     char next = advance(scan);
-
     if(isdigit(next))
         return scan_number(scan);
 
