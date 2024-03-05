@@ -9,7 +9,7 @@ static char * read_file(const char * path){
     FILE * file = fopen(path, "r");
 
     if(file == NULL){
-        fprintf(stderr, "Error opening %s: ", path);
+        fprintf(stderr, "Error opening '%s': ", path);
         perror(""); exit(1);
     }
 
@@ -45,9 +45,8 @@ static void repl(){
     char line[1024];
     for(;;){
 
-        // TODO: THIS IS UNSAFE AND I NEED TO CHANGE IT LATER c:
         prompt();
-        if(fgets(line, 1024, stdin) == NULL){
+        if(fgets(line, sizeof(line), stdin) == NULL){
             putchar('\n');
             break;
         }
