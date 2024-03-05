@@ -33,7 +33,7 @@ static char * read_file(const char * path){
 
 static void run_file(const char * path){
     char * file_data = read_file(path);
-    printf("file: %s\n\n--------\n\n: %s\n", path, file_data);
+    compile(file_data);
     free(file_data);
 }
 

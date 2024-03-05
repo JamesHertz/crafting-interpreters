@@ -13,7 +13,7 @@ all: $(EXE)
 $(EXE): $(OBJ)
 	$(CC) $(FLAGS) -o $@ $^
 
-$(BIN_DIR)/%.o: src/%.c $(BIN_DIR)
+$(BIN_DIR)/%.o: src/%.c | $(BIN_DIR)
 	$(CC) $(FLAGS) -c -o $@ $<
 
 $(BIN_DIR):
