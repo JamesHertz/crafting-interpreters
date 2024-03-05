@@ -11,10 +11,10 @@ FLAGS := -Wall
 all: $(EXE)
 
 $(EXE): $(OBJ)
-	gcc $(FLAGS) -o $@ $^
+	$(CC) $(FLAGS) -o $@ $^
 
 $(BIN_DIR)/%.o: src/%.c $(BIN_DIR)
-	gcc $(FLAGS) -c -o $@ $<
+	$(CC) $(FLAGS) -c -o $@ $<
 
 $(BIN_DIR):
 	mkdir -p $@

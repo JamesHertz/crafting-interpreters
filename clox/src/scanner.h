@@ -42,6 +42,7 @@ typedef struct {
 void scanner_init(scanner_t *scanner, const char * source);
 token_t scanner_next_token(scanner_t *scanner);
 
+char * tt2str(token_type_t type);
 
 
 

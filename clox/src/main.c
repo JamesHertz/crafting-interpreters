@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "scanner.h"
+#include "compiler.h"
 
 static char * read_file(const char * path){
 
@@ -51,8 +51,13 @@ static void repl(){
             putchar('\n');
             break;
         }
+
+        compile(line);
+        
+
+
         // do something
-        printf(">> %s\n", line);
+        // printf(">> %s\n", line);
     }
 
 }
