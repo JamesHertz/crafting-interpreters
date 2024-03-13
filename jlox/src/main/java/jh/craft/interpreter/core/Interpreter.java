@@ -10,6 +10,7 @@ import jh.craft.interpreter.scanner.TokenType;
 import jh.craft.interpreter.utils.Utils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,12 +19,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     private final Environment globalEnv;
     private final LoxErrorReporter reporter;
     private Environment currentEnv;
-    private Map<Token, Integer> declarationDistances;
+    private final Map<Token, Integer> declarationDistances;
     public Interpreter(LoxErrorReporter reporter){
         this.reporter = reporter;
         this.globalEnv = new Environment();
         this.currentEnv = globalEnv;
-        this.declarationDistances = null;
+        this.declarationDistances = new HashMap<>();
         this.initGlobalEnvironment();
     }
 
@@ -48,7 +49,10 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     public void interpret(List<Stmt> statements, Map<Token, Integer> declarationDistances){
         try{
-            this.declarationDistances = declarationDistances;
+            this.declarationDistances.putAll(
+                    declarationDistances
+            );
+//            this.declarationDistances.adddeclarationDistances;
             for( var stmt : statements )
                 execute(stmt);
         }catch (LoxError error){

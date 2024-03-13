@@ -18,7 +18,7 @@ static char * read_file(const char * path){
 
     char * file_data = malloc(st.st_size + 1);
     if(file_data == NULL){
-        fprintf(stderr, "Unable to reserve enough space for file %s\n", path);
+        fprintf(stderr, "Unable to reserve enough space for file '%s'\n", path);
         exit(1);
     }
 
@@ -61,15 +61,38 @@ static void repl(){
 
 }
 
-int main(int argc, char ** argv){
+#include "memory.h"
+typedef struct {
+    int * values;
+    size_t length;
+    size_t size;
+} int_list_t; 
 
-    if(argc == 1){
-        repl();
-    } else if(argc == 2){
-        run_file(argv[1]);
-    } else {
-        printf("usage: %s <path>\n", argv[0]);
+int main(int argc, char ** argv){
+    int_list_t list;
+    da_init(&list, int);
+
+    printf("length : %zu\n", list.length);
+    printf("size   : %zu\n", list.size);
+
+    for(int i = 1; i <= 10; i++){
+        da_add(&list, i, int);
+        printf("length : %zu\n", list.length);
+        printf("size   : %zu\n", list.size);
+        printf("-----------------------\n");
     }
+
+    for(int i = 0; i < list.length; i++){
+        printf("> %d\n", list.values[i]);
+    }
+
+    // if(argc == 1){
+    //     repl();
+    // } else if(argc == 2){
+    //     run_file(argv[1]);
+    // } else {
+    //     printf("usage: %s <path>\n", argv[0]);
+    // }
 
     return 0;
 }
