@@ -1,9 +1,10 @@
 #include "compiler.h"
+#include "program.h"
 #include "scanner.h"
 
 #include <stdio.h>
 
-void compile(const char * source){
+bool compile(const char * source, program_t * p){
     scanner_t scan;
     scanner_init(&scan, source);
 
@@ -16,4 +17,5 @@ void compile(const char * source){
         );
     }while(token.type != TOKEN_EOF && token.type != TOKEN_ERROR);
 
+    return false;
 }

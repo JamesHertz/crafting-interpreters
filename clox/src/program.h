@@ -35,8 +35,9 @@ typedef struct {
 } program_t;
 
 
-void init_prog(program_t * p);
-size_t prog_add_value(program_t * p, value_t value);
+void prog_init(program_t * p);
+size_t prog_add_data(program_t * p, value_t value);
 void prog_add_instr(program_t * p, uint8_t value);
+value_t prog_data(program_t * p, size_t idx);
 
 #endif
