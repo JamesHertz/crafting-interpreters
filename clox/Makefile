@@ -6,7 +6,10 @@ SRC := $(wildcard src/*.c)
 OBJ := $(SRC:src/%.c=$(BIN_DIR)/%.o)
 EXE := $(BIN_DIR)/clox
 
-FLAGS := -Wall
+FLAGS := -Wall -O2
+ifdef D
+	FLAGS += -DDEBUG=1
+endif
 
 all: $(EXE)
 

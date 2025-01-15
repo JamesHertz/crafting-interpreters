@@ -3,76 +3,72 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
-#define isalpha(c) ((c) == '_' || isalpha(c))
+#define isletter(c) ((c) == '_' || isalpha(c))
 
-static bool isover(const scanner_t * scan){
-    return *scan->current == '\0';
+static bool isover(const scanner_t * sc){
+    return *sc->current == '\0';
 }
 
-static inline token_t make_token(const scanner_t * scan, token_type_t type){
+static inline token_t make_token(const scanner_t * sc, token_type_t type){
     return (token_t) {
         .type   = type,
-        .start  = scan->start,
-        .length = (int) (scan->current - scan->start),
-        .line   = scan->line,
+        .start  = sc->start,
+        .length = (int) (sc->current - sc->start),
+        .line   = sc->line,
     };
 }
 
-static inline token_t make_error(const scanner_t * scan, const char * msg){
+static inline token_t make_error(const scanner_t * sc, const char * msg){
     return (token_t) {
         .type   = TOKEN_ERROR,
         .start  = msg,
         .length = strlen(msg),
-        .line   = scan->line,
+        .line   = sc->line,
     };
 }
 
-static inline char advance(scanner_t * scan){
-    return *scan->current++;
+static inline char advance(scanner_t * sc){
+    return *sc->current++;
 }
 
-static char peek(const scanner_t * scan){
-    if(isover(scan))
+static char peek(const scanner_t * sc){
+    if(isover(sc))
         return '\0';
-    return *scan->current;
+    return *sc->current;
 }
 
-static char peeknext(const scanner_t * scan){
-    if(isover(scan))
+static char peeknext(const scanner_t * sc){
+    if(isover(sc))
         return '\0';
-    return scan->current[1];
+    return sc->current[1];
 }
 
-static bool match(scanner_t * scan, char value){
-    if(peek(scan) != value)
+static bool match(scanner_t * sc, char value){
+    if(peek(sc) != value)
         return false;
     
-    advance(scan);
+    advance(sc);
     return true;
 
 }
 
-// static inline bool check(const scanner_t * scan, char value){
-//     return peek(scan) == value;
-// }
-
-static void skipspaces(scanner_t * scan){
+static void skipspaces(scanner_t * sc){
     for(;;){
-        char next = peek(scan);
+        char next = peek(sc);
         switch (next) {
             case '\n':
-                scan->line++;
+                sc->line++;
             case '\t':
             case ' ':
             case '\r':
-                advance(scan);
+                advance(sc);
             break;
-
             case '/':
-                if(!match(scan, '/')) return ;
-                while(!isover(scan) && peek(scan) != '\n') 
-                    advance(scan);
+                if(peeknext(sc) != '/') return;
+                while(!isover(sc) && peek(sc) != '\n') 
+                    advance(sc);
                 break;
             default:
                 return;
@@ -81,19 +77,19 @@ static void skipspaces(scanner_t * scan){
 }
 
 
-static token_t scan_number(scanner_t * scan){
-    while( isdigit( peek(scan) ))
-        advance(scan);
+static token_t sc_number(scanner_t * sc){
+    while( isdigit( peek(sc) ))
+        advance(sc);
 
-    if(peek(scan) == '.' && isdigit( peeknext(scan) ) ){
-        advance(scan); // for the period :)
+    if(peek(sc) == '.' && isdigit( peeknext(sc) ) ){
+        advance(sc); // for the period :)
 
         do{
-            advance(scan);
-        } while( isdigit( peek(scan) ));
+            advance(sc);
+        } while( isdigit( peek(sc) ));
     }
 
-    return make_token(scan, TOKEN_NUMBER);
+    return make_token(sc, TOKEN_NUMBER);
 }
 
 static inline token_type_t check_keyword(
@@ -158,91 +154,97 @@ static token_type_t identifier_type(const char * ident, size_t size){
     return TOKEN_IDENTIFIER;
 }
 
-static token_t scan_identifier(scanner_t * scan){
+static token_t scan_identifier(scanner_t * sc){
 
-    char next = peek(scan);
-    while( isalpha(next) || isdigit(next) ){
-        advance(scan);
-        next = peek(scan);
+    char next = peek(sc);
+    while( isletter(next) || isdigit(next) ){
+        advance(sc);
+        next = peek(sc);
     }
 
-    size_t ident_size = (size_t) (scan->current - scan->start);
+    size_t ident_size = (size_t) (sc->current - sc->start);
     return make_token(
-        scan, identifier_type(scan->start, ident_size)
+        sc, identifier_type(sc->start, ident_size)
     );
 }
 
-static token_t scan_string(scanner_t * scan){
+static token_t scan_string(scanner_t * sc){
 
-    while(peek(scan) != '"' && !isover(scan)){
-        if(peek(scan) == '\n') scan->line++;
-        advance(scan);
+    while(peek(sc) != '"' && !isover(sc)){
+        if(peek(sc) == '\n') sc->line++;
+        advance(sc);
     }
 
-    if(isover(scan))
-        return make_error(scan, "Unterminated string.");
+    if(isover(sc))
+        return make_error(sc, "Unterminated string.");
 
-    advance(scan); // enclosing quote c:
-    return make_token(scan, TOKEN_STRING);
+    advance(sc); // enclosing quote c:
+    return make_token(sc, TOKEN_STRING);
 }
 
-void scanner_init(scanner_t * scan, const char * source){
-    scan->start   = source;
-    scan->current = source;
-    scan->line = 0;
+void sc_init(scanner_t * sc, const char * source){
+    sc->start   = source;
+    sc->current = source;
+    sc->line = 0;
 }
 
-token_t scanner_next_token(scanner_t * scan){
+void sc_destroy(scanner_t * sc){
+    sc->start   = NULL;
+    sc->current = NULL;
+    sc->line    = 0;
+}
+
+token_t sc_next_token(scanner_t * sc){
     // skip comments c:
-    skipspaces(scan);
+    skipspaces(sc);
 
-    scan->start = scan->current;
-    if(isover(scan))
-        return make_token(scan, TOKEN_EOF);
+    sc->start = sc->current;
+    if(isover(sc))
+        return make_token(sc, TOKEN_EOF);
 
-    char next = advance(scan);
+    char next = advance(sc);
     if(isdigit(next))
-        return scan_number(scan);
+        return sc_number(sc);
 
-    if(isalpha(next))
-        return scan_identifier(scan);
+    if(isletter(next))
+        return scan_identifier(sc);
 
     switch (next){
-        case '.' : return make_token(scan, TOKEN_DOT);
+        case '.' : return make_token(sc, TOKEN_DOT);
 
-        case '+' : return make_token(scan, TOKEN_PLUS);
-        case '-' : return make_token(scan, TOKEN_MINUS);
-        case '*' : return make_token(scan, TOKEN_PLUS);
-        case '/' : return make_token(scan, TOKEN_SLASH);
+        case '+' : return make_token(sc, TOKEN_PLUS);
+        case '-' : return make_token(sc, TOKEN_MINUS);
+        case '*' : return make_token(sc, TOKEN_STAR);
+        case '/' : return make_token(sc, TOKEN_SLASH);
 
-        case '(' : return make_token(scan, TOKEN_LEFT_PAREN);
-        case ')' : return make_token(scan, TOKEN_RIGHT_PAREN);
-        case '{' : return make_token(scan, TOKEN_LEFT_BRACE);
-        case '}' : return make_token(scan, TOKEN_RIGHT_BRACE);
+        case '(' : return make_token(sc, TOKEN_LEFT_PAREN);
+        case ')' : return make_token(sc, TOKEN_RIGHT_PAREN);
+        case '{' : return make_token(sc, TOKEN_LEFT_BRACE);
+        case '}' : return make_token(sc, TOKEN_RIGHT_BRACE);
 
-        case ';' : return make_token(scan, TOKEN_SEMICOLON);
-        case ',' : return make_token(scan, TOKEN_COMMA);
+        case ';' : return make_token(sc, TOKEN_SEMICOLON);
+        case ',' : return make_token(sc, TOKEN_COMMA);
 
         case '>' : return make_token(
-            scan, match(scan, '=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER
+            sc, match(sc, '=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER
         );
 
         case '<' : return make_token(
-            scan, match(scan, '=') ? TOKEN_LESS_EQUAL : TOKEN_LESS
+            sc, match(sc, '=') ? TOKEN_LESS_EQUAL : TOKEN_LESS
         );
 
         case '=' : return make_token(
-            scan, match(scan, '=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL
+            sc, match(sc, '=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL
         );
 
         case '!' : return make_token(
-            scan, match(scan, '=') ? TOKEN_BANG_EQUAL : TOKEN_BANG
+            sc, match(sc, '=') ? TOKEN_BANG_EQUAL : TOKEN_BANG
         );
 
-        case '"' : return scan_string(scan);
+        case '"' : return scan_string(sc);
 
         default:
-            return make_error(scan, "Unexpected character.");
+            return make_error(sc, "Unexpected character.");
     }
 
 }
@@ -275,7 +277,6 @@ char * tt2str(token_type_t token){
         CASE(TOKEN_NUMBER);
 
         // Keywords.
-
         CASE(TOKEN_AND); CASE(TOKEN_CLASS); 
         CASE(TOKEN_ELSE); CASE(TOKEN_FALSE);
 
@@ -290,8 +291,7 @@ char * tt2str(token_type_t token){
 
         // extra
         CASE(TOKEN_ERROR); CASE(TOKEN_EOF);
-        default:
-            return NULL;
+        default: assert(0 && "unexpected token type");
     }
 
 }

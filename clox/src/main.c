@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 
 #include "compiler.h"
+#include "vm.h"
 
 static char * read_file(const char * path){
 
@@ -33,12 +34,14 @@ static char * read_file(const char * path){
 
 static void run_file(const char * path){
     char * file_data = read_file(path);
-    compile(file_data);
+    interpret(file_data);
     free(file_data);
+    // TODO: print status
 }
 
-static void prompt(){
-    printf("> "); fflush(stdout);
+static inline void prompt(){
+    printf("> "); 
+    fflush(stdout);
 }
 
 static void repl(){
@@ -51,42 +54,19 @@ static void repl(){
             break;
         }
 
-        compile(line);
+        interpret(line);
     }
 
 }
 
-// #include "memory.h"
-// typedef struct {
-//     int * values;
-//     size_t length;
-//     size_t size;
-// } int_list_t; 
-
 int main(int argc, char ** argv){
-    // int_list_t list;
-    // da_init(&list, int);
-    //
-    // printf("length : %zu\n", list.length);
-    // printf("size   : %zu\n", list.size);
-    //
-    // for(int i = 1; i <= 10; i++){
-    //     da_add(&list, i, int);
-    //     printf("length : %zu\n", list.length);
-    //     printf("size   : %zu\n", list.size);
-    //     printf("-----------------------\n");
-    // }
-    //
-    // for(int i = 0; i < list.length; i++){
-    //     printf("> %d\n", list.values[i]);
-    // }
 
     if(argc == 1){
         repl();
     } else if(argc == 2){
         run_file(argv[1]);
     } else {
-        printf("usage: %s <path>\n", argv[0]);
+        fprintf(stderr, "usage: %s <path>\n", argv[0]);
     }
 
     return 0;

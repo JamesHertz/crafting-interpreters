@@ -4,6 +4,6 @@
 #include <stdbool.h>
 #include "program.h"
 
-bool compile(const char * source, program_t *p);
+bool compile(const char * source, program_t * p);
 
 #endif 

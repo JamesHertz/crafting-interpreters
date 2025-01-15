@@ -39,8 +39,9 @@ typedef struct {
     int line;
 } scanner_t;
 
-void scanner_init(scanner_t *scanner, const char * source);
-token_t scanner_next_token(scanner_t *scanner);
+void sc_init(scanner_t * sc, const char * source);
+token_t sc_next_token(scanner_t *sc);
+void sc_destroy(scanner_t * sc);
 
 char * tt2str(token_type_t type);
 
