@@ -136,12 +136,8 @@ static void psr_emit_constant(parser_t * psr, value_t constant) {
         psr_error_at(psr, &psr->previous, "too many constants for current chunk (?)");
         constant_idx = 0;
     }
-    psr_emit_bytes(psr, OP_CONST, (uint8_t) constant_idx);
-}
 
-static void psr_parse_number(parser_t * psr) {
-    double value = strtod(psr->previous.start, NULL);
-    psr_emit_constant(psr, NUMBER_VAL(value));
+    psr_emit_bytes(psr, OP_CONST, (uint8_t) constant_idx);
 }
 
 static void psr_parse_binary(parser_t * psr) {
@@ -172,7 +168,6 @@ static void psr_parse_comparison(parser_t * psr) {
         case TOKEN_LESS_EQUAL    : psr_emit_bytes(psr, OP_GREATER, OP_NOT); break;
         default: assert(0 && "psr_parse_comparison(): unexpected token");
     }
-
 }
 
 static void psr_parse_unary(parser_t * psr) {
@@ -193,6 +188,16 @@ static void psr_parse_primary(parser_t * psr) {
         case TOKEN_NIL   : psr_emit_byte(psr, OP_NIL); break;
         default: assert(0 && "psr_parse_primary(): unexpected token");
     }
+}
+
+static void psr_parse_string(parser_t * psr) {
+    token_t * token = &psr->previous;
+    psr_emit_constant(psr, OBJ_VAL(value_copy_string(token->start + 1, token->length - 2)));
+}
+
+static void psr_parse_number(parser_t * psr) {
+    double value = strtod(psr->previous.start, NULL);
+    psr_emit_constant(psr, NUMBER_VAL(value));
 }
 
 static void psr_parse_grouping(parser_t * psr){
@@ -225,7 +230,7 @@ static parser_rule_t rules[] = {
 
     // Literals.
     [TOKEN_IDENTIFIER]    = { NULL, NULL, PREC_NONE },
-    [TOKEN_STRING]        = { NULL, NULL, PREC_NONE },
+    [TOKEN_STRING]        = { psr_parse_string, NULL, PREC_PRIMARY },
     [TOKEN_NUMBER]        = { psr_parse_number, NULL, PREC_PRIMARY },
 
     // Keywords.
