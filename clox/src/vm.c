@@ -42,13 +42,12 @@ static void vm_push(vm_t * vm, value_t value){
 }
 
 static value_t vm_pop(vm_t * vm){
-    assert(vm->stack.length > 0);
-    value_t x = da_pop(value_t, &vm->stack);
-    return x;
+    assert(vm->stack.length > 0 && "vm_pop(): poping from empty stack");
+    return da_pop(value_t, &vm->stack);
 }
 
 static value_t vm_peek(vm_t * vm, size_t distance){
-    size_t idx = vm->stack.length - ( 1 + distance);
+    size_t idx = vm->stack.length - (1 + distance);
     return da_get(value_t, &vm->stack, idx);
 }
 
@@ -58,8 +57,8 @@ static inline value_t vm_get_constant(vm_t * vm, uint8_t idx){
 
 static void vm_register_object(vm_t * vm, object_t * obj){
     assert(obj->next == NULL && "vm_register_object(): obj->next field not null");
-    obj->next = vm->objects;
-    vm->objects  = obj;
+    obj->next   = vm->objects;
+    vm->objects = obj;
 }
 
 static void vm_report_runtime_error(vm_t * vm, const char * format, ...) {
@@ -136,6 +135,7 @@ static interpret_result_t vm_run(vm_t * vm){
                 }
                 vm_push(vm, BOOL_VAL(!vm_pop(vm).as.boolean)); 
                 break;
+
             case OP_NEG : 
                 if(!VAL_IS_NUMBER(vm_peek(vm, 0))) {
                     vm_report_runtime_error(vm, "expected a number operand");

@@ -1,14 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <stdbool.h>
 
-#include "compiler.h"
+#include <sys/stat.h>
+#include <ctype.h>
+
 #include "vm.h"
 
 static char * read_file(const char * path){
 
     FILE * file = fopen(path, "r");
-
     if(file == NULL){
         fprintf(stderr, "Error opening '%s': ", path);
         perror(""); exit(1);
@@ -25,7 +26,6 @@ static char * read_file(const char * path){
 
     // should I ... size_t read_bytes = ... if(read_bytes < st.st_size ) ...
     fread(file_data, sizeof(char), st.st_size, file);
-
     fclose(file);
 
     file_data[st.st_size] = 0;
@@ -44,6 +44,11 @@ static inline void prompt(){
     fflush(stdout);
 }
 
+static bool is_empty(const char * str){
+    while(*str && isspace(*str)) str++;
+    return *str == '\0';
+}
+
 static void repl(){
     char line[1024];
     for(;;){
@@ -54,7 +59,8 @@ static void repl(){
             break;
         }
 
-        interpret(line);
+        if(!is_empty(line))
+            interpret(line);
     }
 
 }

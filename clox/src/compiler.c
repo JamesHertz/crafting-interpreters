@@ -136,7 +136,6 @@ static void psr_emit_constant(parser_t * psr, value_t constant) {
         psr_error_at(psr, &psr->previous, "too many constants for current chunk (?)");
         constant_idx = 0;
     }
-
     psr_emit_bytes(psr, OP_CONST, (uint8_t) constant_idx);
 }
 
@@ -183,7 +182,7 @@ static void psr_parse_unary(parser_t * psr) {
 
 static void psr_parse_primary(parser_t * psr) {
     switch(psr->previous.type) {
-        case TOKEN_TRUE  :  psr_emit_byte(psr, OP_TRUE); break;
+        case TOKEN_TRUE  : psr_emit_byte(psr, OP_TRUE); break;
         case TOKEN_FALSE : psr_emit_byte(psr, OP_FALSE); break;
         case TOKEN_NIL   : psr_emit_byte(psr, OP_NIL); break;
         default: assert(0 && "psr_parse_primary(): unexpected token");

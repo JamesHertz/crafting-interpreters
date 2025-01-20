@@ -60,6 +60,8 @@ static void skipspaces(scanner_t * sc){
         switch (next) {
             case '\n':
                 sc->line++;
+                advance(sc);
+            break;
             case '\t':
             case ' ':
             case '\r':
