@@ -6,16 +6,16 @@
 #include "darray.h"
 #include "memory.h"
 
-void prog_init(program_t * p){
+void prog_init(LoxProgram * p){
     da_init(instr_t, &p->code);
-    da_init(value_t, &p->constants);
+    da_init(LoxValue, &p->constants);
 }
 
-static void free_objects(program_t * p) {
+static void free_objects(LoxProgram * p) {
     for(size_t i = 0; i < p->constants.length; p++) {
-        value_t val = p->constants.values[i];
+        LoxValue val = p->constants.values[i];
         if(VAL_IS_STRING(val)) {
-            obj_string_t * str = (obj_string_t *) val.as.object;
+            LoxString * str = (LoxString *) val.as.object;
             mem_dealloc((void *) str->chars);
 
             str->chars    = NULL;
@@ -28,22 +28,22 @@ static void free_objects(program_t * p) {
     }
 }
 
-void prog_destroy(program_t * p){
+void prog_destroy(LoxProgram * p){
     free_objects(p);
     da_destroy(&p->code);
     da_destroy(&p->constants);
 }
 
-value_t prog_get_constant(const program_t * p, size_t idx){
-    return da_get(value_t, &p->constants, idx);
+LoxValue prog_get_constant(const LoxProgram * p, size_t idx){
+    return da_get(LoxValue, &p->constants, idx);
 }
 
-size_t prog_add_constant(program_t * p, value_t value){
-    da_push(value_t, &p->constants, &value);
+size_t prog_add_constant(LoxProgram * p, LoxValue value){
+    da_push(LoxValue, &p->constants, &value);
     return p->constants.length - 1;
 }
 
-void prog_add_instr(program_t * p, uint8_t op_code, uint32_t line){
+void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
     instr_t tmp = {
         .op_code = op_code,
         .line    = line
@@ -51,15 +51,15 @@ void prog_add_instr(program_t * p, uint8_t op_code, uint32_t line){
     da_push(instr_t, &p->code, &tmp);
 }
 
-static size_t print_constant_instr(const char * name, const program_t * p, size_t offset){
+static size_t print_constant_instr(const char * name, const LoxProgram * p, size_t offset){
     instr_t constant = da_get(instr_t, &p->code, offset + 1);
     printf("%-16s %4d ", name, constant.op_code);
-    value_print(da_get(value_t, &p->constants, constant.op_code));
+    value_print(da_get(LoxValue, &p->constants, constant.op_code));
     putchar('\n');
     return offset + 2;
 }
 
-size_t prog_instr_debug(const program_t * p, size_t offset){
+size_t prog_instr_debug(const LoxProgram * p, size_t offset){
 #define SIMPLE_INSTR_CASE(opcode) case opcode: puts(#opcode); break
 #define CONST_INSTR_CASE(opcode)  case opcode: return print_constant_instr(#opcode, p, offset)
     instr_t instr = da_get(instr_t, &p->code, offset);
@@ -90,7 +90,7 @@ size_t prog_instr_debug(const program_t * p, size_t offset){
         // boolean
         SIMPLE_INSTR_CASE(OP_NOT);
 
-        // value_t values
+        // LoxValue values
         SIMPLE_INSTR_CASE(OP_NIL);
         SIMPLE_INSTR_CASE(OP_TRUE);
         SIMPLE_INSTR_CASE(OP_FALSE);
@@ -105,7 +105,7 @@ size_t prog_instr_debug(const program_t * p, size_t offset){
 #undef CONST_INSTR_CASE
 }
 
-void prog_debug(const program_t * p, const char * title) {
+void prog_debug(const LoxProgram * p, const char * title) {
     printf("=== %s ===\n", title);
     for(size_t offset = 0; offset < p->code.length;)
         offset = prog_instr_debug(p, offset);

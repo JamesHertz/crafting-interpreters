@@ -22,28 +22,28 @@ typedef enum {
     TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
 
     TOKEN_ERROR, TOKEN_EOF
-} token_type_t;
+} TokenType;
 
 // 8 + 4 + 4 + 4
 // 8 + 12 => 20
 typedef struct {
     const char * start;
-    token_type_t type;
+    TokenType type;
     int length;
     int line;
-} token_t;
+} Token;
 
 typedef struct {
     const char * start;
     const char * current;
     int line;
-} scanner_t;
+} LoxScanner;
 
-void sc_init(scanner_t * sc, const char * source);
-token_t sc_next_token(scanner_t *sc);
-void sc_destroy(scanner_t * sc);
+void sc_init(LoxScanner * sc, const char * source);
+Token sc_next_token(LoxScanner *sc);
+void sc_destroy(LoxScanner * sc);
 
-char * tt2str(token_type_t type);
+char * tt2str(TokenType type);
 
 
 

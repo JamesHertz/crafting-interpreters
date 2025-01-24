@@ -5,8 +5,8 @@ typedef enum {
   INTERPRET_OK,
   INTERPRET_COMPILE_ERROR,
   INTERPRET_RUNTIME_ERROR
-} interpret_result_t;
+} LoxInterpretResult;
 
-interpret_result_t interpret(const char * source);
+LoxInterpretResult interpret(const char * source);
 
 #endif

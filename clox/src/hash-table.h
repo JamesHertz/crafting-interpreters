@@ -2,30 +2,30 @@
 #define CLOX_HASH_TABLE_H
 
 // TODO: add a "value.h" file
-#include "program.h"
+#include "value.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
-    const obj_string_t * key;
-    value_t value;
-} Entry;
+    const LoxObjectStr * key;
+    LoxValue value;
+} HashMapEntry;
 
 typedef struct {
     size_t length;
     size_t capacity;
-    Entry * entries;
-} HashTable;
+    HashMapEntry * entries;
+} HashMap;
 
-void ht_init(HashTable * table);
+void map_init(HashMap * map);
 
-bool ht_set(HashTable * table, const obj_string_t * key, value_t value);
-void ht_add_all(HashTable * table, const HashTable * from);
+bool map_set(HashMap * map, const LoxObjectStr * key, LoxValue value);
+void map_add_all(HashMap * map, const HashMap * from);
 
-const value_t * ht_get(const HashTable * table, const obj_string_t * key);
-bool ht_delete(HashTable * table, const obj_string_t * key);
+const LoxValue * map_get(const HashMap * map, const LoxObjectStr * key);
+bool map_delete(HashMap * map, const LoxObjectStr * key);
 
-obj_string_t * ht_find_str(const HashTable * table, const char* chars, size_t length, uint32_t hash);
-void ht_destroy(HashTable * table);
+LoxObjectStr * map_find_str(const HashMap * map, const char* chars, size_t length, uint32_t hash);
+void map_destroy(HashMap * map);
 
 #endif 

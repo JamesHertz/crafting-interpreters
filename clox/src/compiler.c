@@ -9,15 +9,15 @@
 #include <assert.h>
 
 typedef struct {
-    scanner_t in;
-    program_t * out_prog;
+    LoxScanner in;
+    LoxProgram * out_prog;
 
-    token_t previous;
-    token_t current;
+    Token previous;
+    Token current;
 
     bool error_found;
     bool in_panic_mode;
-} parser_t;
+} LoxParser;
 
 typedef enum {
   PREC_NONE,
@@ -31,30 +31,29 @@ typedef enum {
   PREC_UNARY,       // ! -
   PREC_CALL,        // . ()
   PREC_PRIMARY
-} precedence_t;
+} ExprPrecedence;
 
-typedef void (*parse_fn_t)(parser_t *);
+typedef void (*ParserFunc)(LoxParser *);
 
 typedef struct {
-    parse_fn_t   prefix;
-    parse_fn_t   infix;
-    precedence_t precedence;
-} parser_rule_t;
+    ParserFunc   prefix;
+    ParserFunc   infix;
+    ExprPrecedence precedence;
+} LoxParserRule;
 
+static LoxParserRule * get_parse_rule(TokenType tt);
 
-static parser_rule_t * get_parse_rule(token_type_t tt);
-
-static void psr_init(parser_t * psr, const char * source, program_t * out_prog) {
+static void psr_init(LoxParser * psr, const char * source, LoxProgram * out_prog) {
     sc_init(&psr->in, source);
     psr->out_prog = out_prog;
-    memset(&psr->previous, 0, sizeof(token_t));
-    memset(&psr->current, 0, sizeof(token_t));
+    memset(&psr->previous, 0, sizeof(Token));
+    memset(&psr->current, 0, sizeof(Token));
 
     psr->error_found   = false;
     psr->in_panic_mode = false;
 }
 
-static void psr_error_at(parser_t * psr, token_t * pos, const char * msg) {
+static void psr_error_at(LoxParser * psr, Token * pos, const char * msg) {
     if(psr->in_panic_mode) return;
 
     fprintf(stderr, "[line %d] Error", pos->line);
@@ -68,29 +67,29 @@ static void psr_error_at(parser_t * psr, token_t * pos, const char * msg) {
     psr->error_found   = true;
 }
 
-static void psr_advance(parser_t * psr) {
+static void psr_advance(LoxParser * psr) {
     psr->previous = psr->current;
     for(;;) {
         psr->current = sc_next_token(&psr->in);
         if(psr->current.type != TOKEN_ERROR)
             break;
-        token_t * curr = &psr->current;
+        Token * curr = &psr->current;
         psr_error_at(psr, curr, curr->start);
     }
 }
 
-static void psr_consume(parser_t * psr, token_type_t tt, const char * msg) {
+static void psr_consume(LoxParser * psr, TokenType tt, const char * msg) {
     if(psr->current.type == tt)
         psr_advance(psr);
     else
         psr_error_at(psr, &psr->current, msg);
 }
 
-static void psr_parse_precedence(parser_t * psr, precedence_t prec) {
+static void psr_parse_precedence(LoxParser * psr, ExprPrecedence prec) {
     psr_advance(psr);
 
     /*printf("psr_parse_precedence(): prec = %d, prev = %s, curr = %s\n", prec, tt2str(psr->previous.type), tt2str(psr->current.type));*/
-    parser_rule_t * rule = get_parse_rule(psr->previous.type);
+    LoxParserRule * rule = get_parse_rule(psr->previous.type);
     if(rule->prefix == NULL) {
         psr_error_at(psr, &psr->previous, "expected expression");
         return;
@@ -106,31 +105,31 @@ static void psr_parse_precedence(parser_t * psr, precedence_t prec) {
     }
 }
 
-static void psr_parse_expression(parser_t * psr){
+static void psr_parse_expression(LoxParser * psr){
     psr_parse_precedence(psr, PREC_ASSIGNMENT);
 }
 
-static void psr_emit_byte(parser_t * psr, uint8_t byte) {
+static void psr_emit_byte(LoxParser * psr, uint8_t byte) {
     prog_add_instr(psr->out_prog, byte, psr->previous.line);
 }
 
-static void psr_emit_bytes(parser_t * psr, uint8_t byte1, uint8_t byte2) {
+static void psr_emit_bytes(LoxParser * psr, uint8_t byte1, uint8_t byte2) {
     psr_emit_byte(psr, byte1);
     psr_emit_byte(psr, byte2);
 }
 
-static void psr_destroy(parser_t * psr) {
+static void psr_destroy(LoxParser * psr) {
     sc_destroy(&psr->in);
 
     psr->out_prog = NULL;
-    memset(&psr->previous, 0, sizeof(token_t));
-    memset(&psr->current, 0, sizeof(token_t));
+    memset(&psr->previous, 0, sizeof(Token));
+    memset(&psr->current, 0, sizeof(Token));
 
     psr->error_found   = false;
     psr->in_panic_mode = false;
 }
 
-static void psr_emit_constant(parser_t * psr, value_t constant) {
+static void psr_emit_constant(LoxParser * psr, LoxValue constant) {
     size_t constant_idx = prog_add_constant(psr->out_prog, constant);
     if(constant_idx > UINT16_MAX) {
         psr_error_at(psr, &psr->previous, "too many constants for current chunk (?)");
@@ -139,9 +138,9 @@ static void psr_emit_constant(parser_t * psr, value_t constant) {
     psr_emit_bytes(psr, OP_CONST, (uint8_t) constant_idx);
 }
 
-static void psr_parse_binary(parser_t * psr) {
-    token_type_t op = psr->previous.type;
-    precedence_t prec = get_parse_rule(op)->precedence;
+static void psr_parse_binary(LoxParser * psr) {
+    TokenType op = psr->previous.type;
+    ExprPrecedence prec = get_parse_rule(op)->precedence;
     psr_parse_precedence(psr, prec + 1);
 
     switch(op) {
@@ -153,9 +152,9 @@ static void psr_parse_binary(parser_t * psr) {
     }
 }
 
-static void psr_parse_comparison(parser_t * psr) {
-    token_type_t op = psr->previous.type;
-    precedence_t prec = get_parse_rule(op)->precedence;
+static void psr_parse_comparison(LoxParser * psr) {
+    TokenType op = psr->previous.type;
+    ExprPrecedence prec = get_parse_rule(op)->precedence;
     psr_parse_precedence(psr, prec + 1);
 
     switch(op) {
@@ -169,8 +168,8 @@ static void psr_parse_comparison(parser_t * psr) {
     }
 }
 
-static void psr_parse_unary(parser_t * psr) {
-    token_type_t op = psr->previous.type;
+static void psr_parse_unary(LoxParser * psr) {
+    TokenType op = psr->previous.type;
     psr_parse_precedence(psr, PREC_UNARY);
 
     switch(op) {
@@ -180,7 +179,7 @@ static void psr_parse_unary(parser_t * psr) {
     }
 }
 
-static void psr_parse_primary(parser_t * psr) {
+static void psr_parse_primary(LoxParser * psr) {
     switch(psr->previous.type) {
         case TOKEN_TRUE  : psr_emit_byte(psr, OP_TRUE); break;
         case TOKEN_FALSE : psr_emit_byte(psr, OP_FALSE); break;
@@ -189,22 +188,22 @@ static void psr_parse_primary(parser_t * psr) {
     }
 }
 
-static void psr_parse_string(parser_t * psr) {
-    token_t * token = &psr->previous;
-    psr_emit_constant(psr, OBJ_VAL(value_copy_string(token->start + 1, token->length - 2)));
+static void psr_parse_string(LoxParser * psr) {
+    Token * token = &psr->previous;
+    psr_emit_constant(psr, OBJ_VAL(lox_str_copy(token->start + 1, token->length - 2)));
 }
 
-static void psr_parse_number(parser_t * psr) {
+static void psr_parse_number(LoxParser * psr) {
     double value = strtod(psr->previous.start, NULL);
     psr_emit_constant(psr, NUMBER_VAL(value));
 }
 
-static void psr_parse_grouping(parser_t * psr){
+static void psr_parse_grouping(LoxParser * psr){
     psr_parse_expression(psr);
     psr_consume(psr, TOKEN_RIGHT_PAREN, "expected enclosing ')'");
 }
 
-static parser_rule_t rules[] = {
+static LoxParserRule rules[] = {
     [TOKEN_LEFT_PAREN]    = { psr_parse_grouping, NULL, PREC_PRIMARY },
     [TOKEN_RIGHT_PAREN]   = { NULL, NULL, PREC_NONE },
     [TOKEN_LEFT_BRACE]    = { NULL, NULL, PREC_NONE },
@@ -254,14 +253,14 @@ static parser_rule_t rules[] = {
     [TOKEN_EOF]           = { NULL, NULL, PREC_NONE },
 };
 
-static parser_rule_t * get_parse_rule(token_type_t tt){ 
-    assert(tt <= sizeof(rules) / sizeof(parser_rule_t) && "get_parse_rule(): invalid token type");
+static LoxParserRule * get_parse_rule(TokenType tt){ 
+    assert(tt < sizeof(rules) / sizeof(LoxParserRule) && "get_parse_rule(): invalid token type");
     return &rules[tt];
 }
 
-bool compile(const char * source, program_t * prog){
-    parser_t psr;
-    psr_init(&psr, source, prog);
+bool compile(const char * source, LoxProgram * out_prog){
+    LoxParser psr;
+    psr_init(&psr, source, out_prog);
 
     psr_advance(&psr);
     psr_parse_expression(&psr);

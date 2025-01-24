@@ -7,12 +7,12 @@
 
 #define isletter(c) ((c) == '_' || isalpha(c))
 
-static bool isover(const scanner_t * sc){
+static bool isover(const LoxScanner * sc){
     return *sc->current == '\0';
 }
 
-static inline token_t make_token(const scanner_t * sc, token_type_t type){
-    return (token_t) {
+static inline Token make_token(const LoxScanner * sc, TokenType type){
+    return (Token) {
         .type   = type,
         .start  = sc->start,
         .length = (int) (sc->current - sc->start),
@@ -20,8 +20,8 @@ static inline token_t make_token(const scanner_t * sc, token_type_t type){
     };
 }
 
-static inline token_t make_error(const scanner_t * sc, const char * msg){
-    return (token_t) {
+static inline Token make_error(const LoxScanner * sc, const char * msg){
+    return (Token) {
         .type   = TOKEN_ERROR,
         .start  = msg,
         .length = strlen(msg),
@@ -29,23 +29,23 @@ static inline token_t make_error(const scanner_t * sc, const char * msg){
     };
 }
 
-static inline char advance(scanner_t * sc){
+static inline char advance(LoxScanner * sc){
     return *sc->current++;
 }
 
-static char peek(const scanner_t * sc){
+static char peek(const LoxScanner * sc){
     if(isover(sc))
         return '\0';
     return *sc->current;
 }
 
-static char peeknext(const scanner_t * sc){
+static char peeknext(const LoxScanner * sc){
     if(isover(sc))
         return '\0';
     return sc->current[1];
 }
 
-static bool match(scanner_t * sc, char value){
+static bool match(LoxScanner * sc, char value){
     if(peek(sc) != value)
         return false;
     
@@ -54,7 +54,7 @@ static bool match(scanner_t * sc, char value){
 
 }
 
-static void skipspaces(scanner_t * sc){
+static void skipspaces(LoxScanner * sc){
     for(;;){
         char next = peek(sc);
         switch (next) {
@@ -79,7 +79,7 @@ static void skipspaces(scanner_t * sc){
 }
 
 
-static token_t sc_number(scanner_t * sc){
+static Token sc_number(LoxScanner * sc){
     while( isdigit( peek(sc) ))
         advance(sc);
 
@@ -94,12 +94,12 @@ static token_t sc_number(scanner_t * sc){
     return make_token(sc, TOKEN_NUMBER);
 }
 
-static inline token_type_t check_keyword(
+static inline TokenType check_keyword(
     const char * text, 
     size_t text_size,
     const char * keyword,
     size_t keyword_size,
-    token_type_t type
+    TokenType type
 ){
     return keyword_size == text_size 
            && strncmp(text, keyword, text_size) == 0 
@@ -108,7 +108,7 @@ static inline token_type_t check_keyword(
 
 // This uses a Trie (https://en.wikipedia.org/wiki/Trie) to distinguish 
 // the identifiers from the reserved keyword
-static token_type_t identifier_type(const char * ident, size_t size){
+static TokenType identifier_type(const char * ident, size_t size){
 
 #define check_keyword(text, size, keyword, type) (                 \
     check_keyword(text, size, keyword, sizeof(keyword) - 1, type)  \
@@ -156,7 +156,7 @@ static token_type_t identifier_type(const char * ident, size_t size){
     return TOKEN_IDENTIFIER;
 }
 
-static token_t scan_identifier(scanner_t * sc){
+static Token scan_identifier(LoxScanner * sc){
 
     char next = peek(sc);
     while( isletter(next) || isdigit(next) ){
@@ -170,7 +170,7 @@ static token_t scan_identifier(scanner_t * sc){
     );
 }
 
-static token_t scan_string(scanner_t * sc){
+static Token scan_string(LoxScanner * sc){
 
     while(peek(sc) != '"' && !isover(sc)){
         if(peek(sc) == '\n') sc->line++;
@@ -184,19 +184,19 @@ static token_t scan_string(scanner_t * sc){
     return make_token(sc, TOKEN_STRING);
 }
 
-void sc_init(scanner_t * sc, const char * source){
+void sc_init(LoxScanner * sc, const char * source){
     sc->start   = source;
     sc->current = source;
     sc->line = 0;
 }
 
-void sc_destroy(scanner_t * sc){
+void sc_destroy(LoxScanner * sc){
     sc->start   = NULL;
     sc->current = NULL;
     sc->line    = 0;
 }
 
-token_t sc_next_token(scanner_t * sc){
+Token sc_next_token(LoxScanner * sc){
     // skip comments c:
     skipspaces(sc);
 
@@ -254,7 +254,7 @@ token_t sc_next_token(scanner_t * sc){
 
 // for debugging purpose c:
 #define CASE(token) case token : return #token
-char * tt2str(token_type_t token){
+char * tt2str(TokenType token){
 
     switch (token)
     {

@@ -27,7 +27,7 @@ typedef enum {
     // boolean
     OP_NOT,
 
-    // value_t values
+    // LoxValue values
     OP_NIL,
     OP_TRUE,
     OP_FALSE
@@ -40,17 +40,17 @@ typedef struct {
 } instr_t;
 
 typedef struct {
-    DA_DECLARE_ARRAY(instr_t) code;
-    DA_DECLARE_ARRAY(value_t) constants;
-} program_t;
+    DaArray(instr_t) code;
+    DaArray(LoxValue) constants;
+} LoxProgram;
 
-void prog_init(program_t * p);
-size_t prog_add_constant(program_t * p, value_t value);
-value_t prog_get_constant(const program_t * p, size_t idx);
-void prog_add_instr(program_t * p, uint8_t value, uint32_t line);
-void prog_destroy(program_t * p);
+void prog_init(LoxProgram * p);
+size_t prog_add_constant(LoxProgram * p, LoxValue value);
+LoxValue prog_get_constant(const LoxProgram * p, size_t idx);
+void prog_add_instr(LoxProgram * p, uint8_t value, uint32_t line);
+void prog_destroy(LoxProgram * p);
 
-void prog_debug(const program_t * p, const char * title);
-size_t prog_instr_debug(const program_t * p, size_t offset);
+void prog_debug(const LoxProgram * p, const char * title);
+size_t prog_instr_debug(const LoxProgram * p, size_t offset);
 
 #endif

@@ -10,56 +10,56 @@
 #define VAL_IS_OBJ(value)    ((value).type == VAL_OBJ)
 #define VAL_IS_STRING(value)  value_is_of_object_type((value), OBJ_STRING)
 
-#define VAL_AS_STRING(value)  ((obj_string_t *) (value).as.object)
+#define VAL_AS_STRING(value)  ((LoxString *) (value).as.object)
 #define VAL_AS_CSTRING(value) (VAL_AS_STRING(value)->chars)
 
-#define BOOL_VAL(bool)   ((value_t) { .type = VAL_BOOL,   .as.boolean = (bool) })
-#define NUMBER_VAL(num)  ((value_t) { .type = VAL_NUMBER, .as.number  = (num)  })
-#define OBJ_VAL(obj)     ((value_t) { .type = VAL_OBJ,    .as.object  = (object_t *) (obj) })
-#define NIL_VAL          ((value_t) { .type = VAL_NIL,    .as.number  = 0 })
+#define BOOL_VAL(val)    ((LoxValue) { .type = VAL_BOOL,   .as.boolean = (val) })
+#define NUMBER_VAL(val)  ((LoxValue) { .type = VAL_NUMBER, .as.number  = (val)  })
+#define OBJ_VAL(val)     ((LoxValue) { .type = VAL_OBJ,    .as.object  = (LoxObject *) (val) })
+#define NIL_VAL          ((LoxValue) { .type = VAL_NIL,    .as.number  = 0 })
 
 typedef enum {
     OBJ_STRING
-} object_type_t;
+} LoxObjectType;
 
-typedef struct _obj_ {
-    object_type_t type;
-    struct _obj_ * next;
-} object_t;
+typedef struct __lox_object__ {
+    LoxObjectType type;
+    struct __lox_object__ * next;
+} LoxObject;
 
 typedef struct {
-    object_t obj;
+    LoxObject obj;
     size_t length;
     const char * chars;
-} obj_string_t;
+} LoxString;
 
 typedef enum {
     VAL_BOOL,
     VAL_NIL,
     VAL_NUMBER,
     VAL_OBJ,
-} value_type_t;
+} LoxValueType;
 
 // by now c:
 typedef struct {
-    value_type_t type;
+    LoxValueType type;
     union {
         double number;
         bool boolean;
-        object_t * object;
+        LoxObject * object;
     } as;
-} value_t;
+} LoxValue;
 
 
-void value_print(value_t value);
-bool value_eq(value_t v1, value_t v2);
-obj_string_t * value_copy_string(const char * str, size_t size);
-obj_string_t * value_take_string(const char * str, size_t size);
+void value_print(LoxValue value);
+bool value_eq(LoxValue v1, LoxValue v2);
+LoxString * lox_str_copy(const char * str, size_t size);
+LoxString * lox_str_take(const char * str, size_t size);
 
-void obj_destroy(object_t * obj);
-obj_string_t * str_concat(const obj_string_t * str1, const obj_string_t * str2);
+void obj_destroy(LoxObject * obj);
+LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2);
 
-static inline bool value_is_of_object_type(value_t value, object_type_t type) {
+static inline bool value_is_of_object_type(LoxValue value, LoxObjectType type) {
     return VAL_IS_OBJ(value) && value.as.object->type == type;
 }
 #endif 
