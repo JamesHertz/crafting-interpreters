@@ -9,19 +9,19 @@
 
 typedef struct {
     LoxProgram program;    
-    instr_t * ip;
+    Instruction * ip;
     DaArray(LoxValue) stack;
     LoxObject * objects;
-} vm_t;
+} LoxVM;
 
-static void vm_init(vm_t * vm){
+static void vm_init(LoxVM * vm){
     prog_init(&vm->program);
-    da_init(LoxValue, &vm->stack);
+    da_init(&vm->stack);
     vm->ip = NULL;
     vm->objects = NULL;
 } 
 
-static void vm_free_objects(vm_t * vm){
+static void vm_free_objects(LoxVM * vm){
     for(LoxObject * curr = vm->objects; curr;) {
         LoxObject * next = curr->next;
         obj_destroy(curr);
@@ -30,47 +30,47 @@ static void vm_free_objects(vm_t * vm){
     vm->objects = NULL;
 }
 
-static void vm_destroy(vm_t * vm){
+static void vm_destroy(LoxVM * vm){
     vm_free_objects(vm);
     prog_destroy(&vm->program);
     da_destroy(&vm->stack);
     vm->ip      = NULL;
 }
 
-static void vm_push(vm_t * vm, LoxValue value){
-    da_push(LoxValue, &vm->stack, &value);
+static void vm_push(LoxVM * vm, LoxValue value){
+    da_push(&vm->stack, &value);
 }
 
-static LoxValue vm_pop(vm_t * vm){
+static LoxValue vm_pop(LoxVM * vm){
     assert(vm->stack.length > 0 && "vm_pop(): poping from empty stack");
-    return da_pop(LoxValue, &vm->stack);
+    return deref_as(LoxValue, da_pop(&vm->stack));
 }
 
-static LoxValue vm_peek(vm_t * vm, size_t distance){
+static LoxValue vm_peek(LoxVM * vm, size_t distance){
     size_t idx = vm->stack.length - (1 + distance);
-    return da_get(LoxValue, &vm->stack, idx);
+    return deref_as(LoxValue, da_get(&vm->stack, idx));
 }
 
-static inline LoxValue vm_get_constant(vm_t * vm, uint8_t idx){
+static inline LoxValue vm_get_constant(LoxVM * vm, uint8_t idx){
     return prog_get_constant(&vm->program, idx);
 }
 
-static void vm_register_object(vm_t * vm, LoxObject * obj){
+static void vm_register_object(LoxVM * vm, LoxObject * obj){
     assert(obj->next == NULL && "vm_register_object(): obj->next field not null");
     obj->next   = vm->objects;
     vm->objects = obj;
 }
 
-static void vm_report_runtime_error(vm_t * vm, const char * format, ...) {
+static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     // FIXME: use va_args and printf
     fputs("run-time-error: ", stdout);
     puts(format);
-    instr_t instr = vm->ip[-1];
+    Instruction instr = vm->ip[-1];
     printf("[line %u] in script\n", instr.line);
 }
 
 
-static LoxString * vm_stingify_value(vm_t * vm, LoxValue value){
+static LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
     if(VAL_IS_STRING(value)) return VAL_AS_STRING(value);
 
     char buffer[256];
@@ -89,8 +89,7 @@ static LoxString * vm_stingify_value(vm_t * vm, LoxValue value){
     return str;
 }
 
-
-static LoxInterpretResult vm_run(vm_t * vm){
+static LoxInterpretResult vm_run(LoxVM * vm){
 #define BINARY(op, value_constructor) do {                                     \
         if(!VAL_IS_NUMBER(vm_peek(vm, 0)) || !VAL_IS_NUMBER(vm_peek(vm, 1))) { \
             vm_report_runtime_error(vm, "operands should both be numbers");    \
@@ -108,18 +107,17 @@ static LoxInterpretResult vm_run(vm_t * vm){
 
 #ifdef DEBUG_TRACE_EXECUTION
         fputs("          ", stdout);
-        LoxValue * top = vm->stack.values + vm->stack.length;
-        for(LoxValue * curr = vm->stack.values; curr < top; curr++){
-            bool is_str = VAL_IS_STRING(*curr);
+        DA_FOR_EACH_ELEM(LoxValue, curr, &vm->stack, {
+            bool is_str = VAL_IS_STRING(curr);
             fputs(is_str ? "[ \"" : "[ ", stdout);
-            value_print(*curr);
+            value_print(curr);
             fputs(is_str ? "\" ]" : " ]", stdout);
-        }
+        });
         putchar('\n');
         prog_instr_debug(&vm->program, (size_t) (vm->ip - vm->program.code.values));
 #endif
 
-        op_code_t instr = READ_BYTE();
+        OpCode instr = READ_BYTE();
         switch (instr) {
             case OP_CONST: {
                 uint8_t data_idx = READ_BYTE();
@@ -192,7 +190,7 @@ static LoxInterpretResult vm_run(vm_t * vm){
 }
 
 LoxInterpretResult interpret(const char * source){
-    vm_t vm;
+    LoxVM vm;
     vm_init(&vm);
 
     LoxInterpretResult res;

@@ -31,16 +31,16 @@ typedef enum {
     OP_NIL,
     OP_TRUE,
     OP_FALSE
-} op_code_t;
+} OpCode;
 
 // WARN: please don't alter the order <values>, <length>, <size> of the inner structs, this is crucial!
 typedef struct {
     uint32_t line;
     uint8_t op_code;
-} instr_t;
+} Instruction;
 
 typedef struct {
-    DaArray(instr_t) code;
+    DaArray(Instruction) code;
     DaArray(LoxValue) constants;
 } LoxProgram;
 

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <sys/types.h>
+#include <stdint.h>
 
 #define VAL_IS_BOOL(value)   ((value).type == VAL_BOOL)
 #define VAL_IS_NIL(value)    ((value).type == VAL_NIL)
@@ -30,14 +31,15 @@ typedef struct __lox_object__ {
 typedef struct {
     LoxObject obj;
     size_t length;
+    uint32_t hash;
     const char * chars;
 } LoxString;
 
 typedef enum {
-    VAL_BOOL,
     VAL_NIL,
-    VAL_NUMBER,
     VAL_OBJ,
+    VAL_BOOL,
+    VAL_NUMBER,
 } LoxValueType;
 
 // by now c:
@@ -55,6 +57,7 @@ void value_print(LoxValue value);
 bool value_eq(LoxValue v1, LoxValue v2);
 LoxString * lox_str_copy(const char * str, size_t size);
 LoxString * lox_str_take(const char * str, size_t size);
+bool lox_str_eq(const LoxString * s1, const LoxString * s2);
 
 void obj_destroy(LoxObject * obj);
 LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2);

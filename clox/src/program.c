@@ -7,8 +7,8 @@
 #include "memory.h"
 
 void prog_init(LoxProgram * p){
-    da_init(instr_t, &p->code);
-    da_init(LoxValue, &p->constants);
+    da_init(&p->code);
+    da_init(&p->constants);
 }
 
 static void free_objects(LoxProgram * p) {
@@ -35,26 +35,26 @@ void prog_destroy(LoxProgram * p){
 }
 
 LoxValue prog_get_constant(const LoxProgram * p, size_t idx){
-    return da_get(LoxValue, &p->constants, idx);
+    return deref_as(LoxValue, da_get(&p->constants, idx));
 }
 
 size_t prog_add_constant(LoxProgram * p, LoxValue value){
-    da_push(LoxValue, &p->constants, &value);
+    da_push(&p->constants, &value);
     return p->constants.length - 1;
 }
 
 void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
-    instr_t tmp = {
+    Instruction tmp = {
         .op_code = op_code,
         .line    = line
     };
-    da_push(instr_t, &p->code, &tmp);
+    da_push(&p->code, &tmp);
 }
 
 static size_t print_constant_instr(const char * name, const LoxProgram * p, size_t offset){
-    instr_t constant = da_get(instr_t, &p->code, offset + 1);
+    Instruction constant = deref_as(Instruction, da_get(&p->code, offset + 1));
     printf("%-16s %4d ", name, constant.op_code);
-    value_print(da_get(LoxValue, &p->constants, constant.op_code));
+    value_print(deref_as(LoxValue, da_get(&p->constants, constant.op_code)));
     putchar('\n');
     return offset + 2;
 }
@@ -62,10 +62,10 @@ static size_t print_constant_instr(const char * name, const LoxProgram * p, size
 size_t prog_instr_debug(const LoxProgram * p, size_t offset){
 #define SIMPLE_INSTR_CASE(opcode) case opcode: puts(#opcode); break
 #define CONST_INSTR_CASE(opcode)  case opcode: return print_constant_instr(#opcode, p, offset)
-    instr_t instr = da_get(instr_t, &p->code, offset);
+    Instruction instr = deref_as(Instruction, da_get( &p->code, offset));
 
     printf("%04zu ", offset);
-    if(offset > 0 && da_get(instr_t, &p->code, offset - 1).line == instr.line) {
+    if(offset > 0 && deref_as(Instruction, da_get(&p->code, offset - 1)).line == instr.line) {
         fputs("   | ", stdout);
     } else {
         printf("%4d ", instr.line);

@@ -21,18 +21,16 @@ void value_print(LoxValue value){
             fputs(VAL_AS_CSTRING(value), stdout);
             break;
         default:
-            assert( 0 && "value_print(): invalid value type" );
+            assert(0 && "value_print(): invalid value type");
     }
 }
+
 
 bool value_eq(LoxValue v1, LoxValue v2) {
     if(v1.type != v2.type) return false;
 
-    if(VAL_IS_STRING(v1)) {
-        LoxString * str1 = VAL_AS_STRING(v1);
-        LoxString * str2 = VAL_AS_STRING(v2);
-        return str1->length == str2->length && strcmp(str1->chars, str2->chars) == 0;
-    }
+    if(VAL_IS_STRING(v1))
+        return lox_str_eq(VAL_AS_STRING(v1), VAL_AS_STRING(v2));
 
     switch(v1.type) {
         case VAL_NUMBER:
@@ -42,20 +40,30 @@ bool value_eq(LoxValue v1, LoxValue v2) {
         case VAL_NIL:
             return true;
         default:
-            assert( 0 && "value_print(): invalid value type" );
+            assert(0 && "value_print(): invalid value type");
     }
     return false;
 }
 
+static uint32_t hash_str(const char* key, size_t length) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < length; i++) {
+    hash ^= (uint8_t)key[i];
+    hash *= 16777619;
+  }
+  return hash;
+}
+
 LoxString * lox_str_take(const char * str, size_t size) {
-    LoxString * value = mem_alloc(sizeof(LoxString));
+    LoxString * lstr = mem_alloc(sizeof(LoxString));
 
-    value->obj.type = OBJ_STRING;
-    value->obj.next = NULL;
+    lstr->obj.type = OBJ_STRING;
+    lstr->obj.next = NULL;
 
-    value->chars  = str;
-    value->length = size;
-    return value;
+    lstr->chars  = str;
+    lstr->length = size;
+    lstr->hash   = hash_str(str, size);
+    return lstr;
 }
 
 LoxString * lox_str_copy(const char * str, size_t size) {
@@ -67,6 +75,12 @@ LoxString * lox_str_copy(const char * str, size_t size) {
     str_value[size] = 0;
 
     return lox_str_take(str_value, size);
+}
+
+bool lox_str_eq(const LoxString * s1, const LoxString * s2) {
+    return s1->hash == s2->hash 
+        && s1->length == s2->length 
+        && memcmp(s1->chars, s2->chars, s1->length) == 0;
 }
 
 void obj_destroy(LoxObject * obj) {
@@ -83,3 +97,4 @@ LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2) {
     strcat(result + str1->length, str2->chars);
     return lox_str_take(result, total_length);
 }
+
