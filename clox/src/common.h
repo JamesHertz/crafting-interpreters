@@ -7,8 +7,8 @@
 #define UNREACHABLE() do {                         \
   fprintf(                                         \
     stderr,                                        \
-    "%s:%d:%s(): reached unreachable statement\n", \
-    __FILE__, __LINE__, __func__                   \
+    "%s:%s():%d: reached unreachable statement\n", \
+    __FILE__, __func__, __LINE__                   \
   );                                               \
   exit(1);                                         \
 } while(0)                                         \
@@ -16,10 +16,25 @@
 #define TODO(msg) do {                   \
   fprintf(                               \
     stderr,                              \
-    "TODO '" msg "' at `%s:%d:%s()`\n",  \
-    __FILE__, __LINE__, __func__         \
+    "TODO '" msg "' at `%s:%s():%d`\n",  \
+    __FILE__, __func__, __LINE__         \
   );                                     \
   exit(1);                               \
 } while(0)                               \
+
+#define ASSERTF(expr, msg, ...) do {                 \
+  if(!(expr)) {                                      \
+      fprintf(                                       \
+        stderr,                                      \
+        "%s:%s():%d: assertion `" #expr "` failed\n" \
+        "with message: " msg "\n",                   \
+        __FILE__, __func__, __LINE__                 \
+        __VA_OPT__(,) __VA_ARGS__                    \
+      );                                             \
+      exit(1);                                       \
+   }                                                 \
+} while(0)
+
+#define ASSERT(expr) ASSERTF(expr, "-")
 
 #endif

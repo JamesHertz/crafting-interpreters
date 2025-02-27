@@ -1,15 +1,16 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <assert.h>
 
-#include "hash-table.h"
+#include "hash-map.h"
 #include "memory.h"
 
-#define TABLE_MAX_LOAD 0.75
+#define MAP_MAX_LOAD 0.75
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 
 static HashMapEntry * find_entry(HashMapEntry * entries, size_t capacity, const LoxString * key) {
-    size_t idx = key->hash % capacity;
+    assert(entries != NULL && "invalid entries list");
 
+    size_t idx = key->hash % capacity;
     HashMapEntry * deleted = NULL;
     for(;;) {
         HashMapEntry * current = &entries[idx];
@@ -63,7 +64,7 @@ void map_init(HashMap * map) {
 }
 
 bool map_set(HashMap * map, const LoxString * key, LoxValue value) {
-    if(map->length + 1 > map->capacity * TABLE_MAX_LOAD ) {
+    if(map->length + 1 > map->capacity * MAP_MAX_LOAD ) {
         size_t new_capacity = GROW_CAPACITY(map->capacity);
         map_adjust_capacity(map, new_capacity);
     }
@@ -87,16 +88,41 @@ void map_add_all(HashMap * map, const HashMap * from) {
     }
 }
 
+const LoxString * map_find_str(const HashMap * map, const char* chars, size_t length, uint32_t hash) {
+    if(map->length == 0) return NULL;
+
+    size_t idx = hash % map->capacity;
+    LoxString tmp = {
+        .obj    = {0},
+        .length = length,
+        .chars  = chars,
+        .hash   = hash,
+    };
+
+    for(;;) {
+        const HashMapEntry * entry = &map->entries[idx];
+        if(entry->key == NULL) {
+            if(VAL_IS_NIL(entry->value))  // stop at non-deleted entry
+                return NULL;
+        } else if(lox_str_eq(&tmp, entry->key))  {
+            return entry->key;
+        }
+        idx = (idx + 1) % map->capacity;
+    }
+
+}
+
 const LoxValue * map_get(const HashMap * map, const LoxString * key) {
-    HashMapEntry * entry = find_entry(map->entries, map->capacity, key);
-    return entry->key == NULL ? NULL : &entry->value;
+    HashMapEntry * entry;
+    return 
+        map->length > 0 &&
+        (entry = find_entry(map->entries, map->capacity, key))->key != NULL
+        ? &entry->value : NULL;
 }
 
 bool map_delete(HashMap * map, const LoxString * key) {
-    if(map->length == 0) return false;
-
-    HashMapEntry * entry = find_entry(map->entries, map->capacity, key);
-    if(entry->key == NULL) 
+    HashMapEntry * entry;
+    if(map->length == 0 || (entry = find_entry(map->entries, map->capacity, key))->key == NULL) 
         return false;
 
     // marked as deleted c:
@@ -106,8 +132,17 @@ bool map_delete(HashMap * map, const LoxString * key) {
 }
 
 void map_destroy(HashMap * map) {
-    free(map->entries);
+    mem_dealloc(map->entries);
     map->capacity = 0;
     map->length   = 0;
     map->entries  = NULL;
+}
+
+uint32_t str_hash(const char* str, size_t length) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < length; i++) {
+    hash ^= (uint8_t)str[i];
+    hash *= 16777619;
+  }
+  return hash;
 }

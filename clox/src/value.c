@@ -29,52 +29,43 @@ void value_print(LoxValue value){
 bool value_eq(LoxValue v1, LoxValue v2) {
     if(v1.type != v2.type) return false;
 
-    if(VAL_IS_STRING(v1))
-        return lox_str_eq(VAL_AS_STRING(v1), VAL_AS_STRING(v2));
-
     switch(v1.type) {
+        case VAL_NIL:
+            return true;
         case VAL_NUMBER:
             return v1.as.number == v2.as.number;
         case VAL_BOOL:
             return v1.as.boolean == v2.as.boolean;
-        case VAL_NIL:
-            return true;
+        case VAL_OBJ:
+            return v1.as.object == v2.as.object;
         default:
             assert(0 && "value_print(): invalid value type");
     }
     return false;
 }
 
-static uint32_t hash_str(const char* key, size_t length) {
-  uint32_t hash = 2166136261u;
-  for (size_t i = 0; i < length; i++) {
-    hash ^= (uint8_t)key[i];
-    hash *= 16777619;
-  }
-  return hash;
-}
-
-LoxString * lox_str_take(const char * str, size_t size) {
+LoxString * lox_str_take(const char * str, size_t length, uint32_t hash) {
     LoxString * lstr = mem_alloc(sizeof(LoxString));
 
     lstr->obj.type = OBJ_STRING;
     lstr->obj.next = NULL;
 
     lstr->chars  = str;
-    lstr->length = size;
-    lstr->hash   = hash_str(str, size);
+    lstr->length = length;
+    lstr->hash   = hash;
+    /*lstr->hash   = hash_str(str, size);*/
     return lstr;
 }
 
-LoxString * lox_str_copy(const char * str, size_t size) {
-    char * str_value = mem_alloc(size + 1);
+LoxString * lox_str_copy(const char * str, size_t length, uint32_t hash) {
+    char * str_value = mem_alloc(length + 1);
 
-    // I could've used `strncpy(str_value, str, size)` but valgrind didn't like it
+    // I could've used `strncpy(str_value, str, size)` but valgrind doesn't like it
     // so I used the following two lines just to shut it up c:
-    memcpy(str_value, str, size);
-    str_value[size] = 0;
+    memcpy(str_value, str, length);
+    str_value[length] = 0;
 
-    return lox_str_take(str_value, size);
+    return lox_str_take(str_value, length, hash);
 }
 
 bool lox_str_eq(const LoxString * s1, const LoxString * s2) {
@@ -88,13 +79,13 @@ void obj_destroy(LoxObject * obj) {
     mem_dealloc(obj);
 }
 
-LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2) {
-    size_t total_length = str1->length + str2->length;
-    char * result = mem_alloc(total_length + 1);
-    result[0] = 0;
-
-    strcat(result, str1->chars);
-    strcat(result + str1->length, str2->chars);
-    return lox_str_take(result, total_length);
-}
+/*LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2) {*/
+/*    size_t total_length = str1->length + str2->length;*/
+/*    char * result = mem_alloc(total_length + 1);*/
+/*    result[0] = 0;*/
+/**/
+/*    strcat(result, str1->chars);*/
+/*    strcat(result + str1->length, str2->chars);*/
+/*    return lox_str_take(result, total_length);*/
+/*}*/
 

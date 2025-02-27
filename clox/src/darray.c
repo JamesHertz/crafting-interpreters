@@ -7,8 +7,8 @@
 #include "darray.h"
 #include "memory.h"
 
-#define DEFAULT_SIZE 8
-#define GROWTH_FACTOR 2
+// TODO: refactor this
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 
 static void * da_get_ptr(const DaArrayAny * array, size_t idx) {
     if(idx >= array->length){
@@ -19,10 +19,10 @@ static void * da_get_ptr(const DaArrayAny * array, size_t idx) {
 }
 
 void da_init(DaArrayAny * array, size_t elem_size) {
-    array->values = mem_alloc(elem_size * DEFAULT_SIZE);
-    array->size   = DEFAULT_SIZE;
-    array->elem_size = elem_size;
+    array->values = NULL;
+    array->size   = 0;
     array->length = 0;
+    array->elem_size = elem_size;
 }
 
 void * da_get(const DaArrayAny * array, size_t idx) {
@@ -36,7 +36,7 @@ void da_set(DaArrayAny * array, size_t idx, const void * value) {
 
 void da_push(DaArrayAny * array, const void * elem) {
     if(array->length == array->size) { // array is full
-        array->size *= GROWTH_FACTOR;
+        array->size   = GROW_CAPACITY(array->size);
         array->values = mem_realloc(array->values, array->size * array->elem_size);
     }
 

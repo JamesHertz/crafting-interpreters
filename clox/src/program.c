@@ -12,7 +12,7 @@ void prog_init(LoxProgram * p){
 }
 
 static void free_objects(LoxProgram * p) {
-    for(size_t i = 0; i < p->constants.length; p++) {
+    for(size_t i = 0; i < p->constants.length; i++) {
         LoxValue val = p->constants.values[i];
         if(VAL_IS_STRING(val)) {
             LoxString * str = (LoxString *) val.as.object;

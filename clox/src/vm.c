@@ -1,6 +1,8 @@
 #include "vm.h"
 #include "compiler.h"
 #include "program.h"
+#include "hash-map.h"
+#include "memory.h"
 #include "debug.h"
 
 #include <stdio.h>
@@ -9,14 +11,16 @@
 
 typedef struct {
     LoxProgram program;    
-    Instruction * ip;
     DaArray(LoxValue) stack;
+    HashMap strings;
+    Instruction * ip;
     LoxObject * objects;
 } LoxVM;
 
 static void vm_init(LoxVM * vm){
     prog_init(&vm->program);
     da_init(&vm->stack);
+    map_init(&vm->strings);
     vm->ip = NULL;
     vm->objects = NULL;
 } 
@@ -33,6 +37,7 @@ static void vm_free_objects(LoxVM * vm){
 static void vm_destroy(LoxVM * vm){
     vm_free_objects(vm);
     prog_destroy(&vm->program);
+    map_destroy(&vm->strings);
     da_destroy(&vm->stack);
     vm->ip      = NULL;
 }
@@ -70,7 +75,7 @@ static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
 }
 
 
-static LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
+static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
     if(VAL_IS_STRING(value)) return VAL_AS_STRING(value);
 
     char buffer[256];
@@ -84,8 +89,16 @@ static LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
         assert(0 && "vm_stingify_value(): reached unreachable branch");
     }
 
-    LoxString * str = lox_str_copy(buffer, strlen(buffer));
-    vm_register_object(vm, (LoxObject*) str);
+
+    size_t length = strlen(buffer);
+    uint32_t hash = str_hash(buffer, length);
+
+    const LoxString * str;
+    if((str = map_find_str(&vm->strings, buffer, length, hash)) == NULL) {
+        str = lox_str_copy(buffer, length, hash);
+        map_set(&vm->strings, str, BOOL_VAL(true));
+        vm_register_object(vm, (LoxObject*) str);
+    }
     return str;
 }
 
@@ -147,11 +160,26 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                 LoxValue a = vm_peek(vm, 1);
 
                 if(VAL_IS_STRING(a) || VAL_IS_STRING(b)) {
-                    LoxString * str2 = vm_stingify_value(vm, vm_pop(vm));
-                    LoxString * str1 = vm_stingify_value(vm,vm_pop(vm));
-                    LoxString * result = lox_str_concat(str1, str2); 
+                    const LoxString * str2 = vm_stingify_value(vm, vm_pop(vm));
+                    const LoxString * str1 = vm_stingify_value(vm,vm_pop(vm));
 
-                    vm_register_object(vm, (LoxObject*) result);
+                    const LoxString * result;
+                    { 
+                        size_t length = strlen(str1->chars) + strlen(str2->chars);
+                        char * buffer = mem_alloc(length + 1);
+
+                        buffer[0] = 0;
+                        strcat(buffer, str1->chars);
+                        strcat(buffer + str1->length, str2->chars);
+
+                        uint32_t hash = str_hash(buffer, length);
+                        if((result = map_find_str(&vm->strings, buffer, length, hash)) == NULL) {
+                            result = lox_str_take(buffer, length, hash);
+                            vm_register_object(vm, (LoxObject*) result);
+                        } else {
+                            mem_dealloc(buffer);
+                        }
+                    }
                     vm_push(vm, OBJ_VAL(result));
                 } else if(VAL_IS_NUMBER(a) && VAL_IS_NUMBER(b)) {
                     vm_push(vm, NUMBER_VAL( vm_pop(vm).as.number + vm_pop(vm).as.number));
@@ -194,7 +222,7 @@ LoxInterpretResult interpret(const char * source){
     vm_init(&vm);
 
     LoxInterpretResult res;
-    if(!compile(source, &vm.program)) {
+    if(!compile(source, &vm.program, &vm.strings)) {
        res = INTERPRET_COMPILE_ERROR;
     } else {
         vm_run(&vm);

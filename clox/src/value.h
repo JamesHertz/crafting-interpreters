@@ -52,11 +52,10 @@ typedef struct {
     } as;
 } LoxValue;
 
-
 void value_print(LoxValue value);
 bool value_eq(LoxValue v1, LoxValue v2);
-LoxString * lox_str_copy(const char * str, size_t size);
-LoxString * lox_str_take(const char * str, size_t size);
+LoxString * lox_str_copy(const char * str, size_t length, uint32_t hash);
+LoxString * lox_str_take(const char * str, size_t length, uint32_t hash);
 bool lox_str_eq(const LoxString * s1, const LoxString * s2);
 
 void obj_destroy(LoxObject * obj);

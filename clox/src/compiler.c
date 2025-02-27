@@ -11,6 +11,7 @@
 typedef struct {
     LoxScanner in;
     LoxProgram * out_prog;
+    HashMap * strings;
 
     Token previous;
     Token current;
@@ -43,9 +44,10 @@ typedef struct {
 
 static LoxParserRule * get_parse_rule(TokenType tt);
 
-static void psr_init(LoxParser * psr, const char * source, LoxProgram * out_prog) {
+static void psr_init(LoxParser * psr, const char * source, LoxProgram * out_prog, HashMap * strings) {
     sc_init(&psr->in, source);
     psr->out_prog = out_prog;
+    psr->strings  = strings;
     memset(&psr->previous, 0, sizeof(Token));
     memset(&psr->current, 0, sizeof(Token));
 
@@ -190,7 +192,18 @@ static void psr_parse_primary(LoxParser * psr) {
 
 static void psr_parse_string(LoxParser * psr) {
     Token * token = &psr->previous;
-    psr_emit_constant(psr, OBJ_VAL(lox_str_copy(token->start + 1, token->length - 2)));
+
+    const char * chars = &token->start[1];
+    size_t length = token->length - 2;
+    uint32_t hash = str_hash(chars, length);
+
+    const LoxString * str;
+    if((str = map_find_str(psr->strings, chars, length, hash)) == NULL){
+        str = lox_str_copy(chars, length, hash);
+        map_set(psr->strings, str, BOOL_VAL(true));
+    }
+
+    psr_emit_constant(psr, OBJ_VAL(str));
 }
 
 static void psr_parse_number(LoxParser * psr) {
@@ -258,9 +271,9 @@ static LoxParserRule * get_parse_rule(TokenType tt){
     return &rules[tt];
 }
 
-bool compile(const char * source, LoxProgram * out_prog){
+bool compile(const char * source, LoxProgram * out_prog, HashMap * strings) {
     LoxParser psr;
-    psr_init(&psr, source, out_prog);
+    psr_init(&psr, source, out_prog, strings);
 
     psr_advance(&psr);
     psr_parse_expression(&psr);
