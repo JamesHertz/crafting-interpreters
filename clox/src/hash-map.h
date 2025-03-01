@@ -23,10 +23,17 @@ bool map_set(HashMap * map, const LoxString * key, LoxValue value);
 void map_add_all(HashMap * map, const HashMap * from);
 
 const LoxValue * map_get(const HashMap * map, const LoxString * key);
+
+static inline LoxValue * map_get_mut(const HashMap * map, const LoxString * key) {
+    return (LoxValue *) map_get(map, key);
+}
+
 bool map_delete(HashMap * map, const LoxString * key);
 
 const LoxString * map_find_str(const HashMap * map, const char* chars, size_t length, uint32_t hash);
 void map_destroy(HashMap * map);
+
+void map_debug(HashMap * map);
 
 uint32_t str_hash(const char* str, size_t length);
 

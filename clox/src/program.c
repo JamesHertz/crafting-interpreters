@@ -51,6 +51,13 @@ void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
     da_push(&p->code, &tmp);
 }
 
+
+static size_t print_byte_instr(const char * name, const LoxProgram * p, size_t offset){
+    Instruction constant = deref_as(Instruction, da_get(&p->code, offset + 1));
+    printf("%-16s %4d\n", name, constant.op_code);
+    return offset + 2;
+}
+
 static size_t print_constant_instr(const char * name, const LoxProgram * p, size_t offset){
     Instruction constant = deref_as(Instruction, da_get(&p->code, offset + 1));
     printf("%-16s %4d ", name, constant.op_code);
@@ -62,7 +69,8 @@ static size_t print_constant_instr(const char * name, const LoxProgram * p, size
 size_t prog_instr_debug(const LoxProgram * p, size_t offset){
 #define SIMPLE_INSTR_CASE(opcode) case opcode: puts(#opcode); break
 #define CONST_INSTR_CASE(opcode)  case opcode: return print_constant_instr(#opcode, p, offset)
-    Instruction instr = deref_as(Instruction, da_get( &p->code, offset));
+#define BYTE_INSTR_CASE(opcode)   case opcode: return print_byte_instr(#opcode, p, offset)
+    Instruction instr = deref_as(Instruction, da_get(&p->code, offset));
 
     printf("%04zu ", offset);
     if(offset > 0 && deref_as(Instruction, da_get(&p->code, offset - 1)).line == instr.line) {
@@ -73,15 +81,22 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
 
     switch(instr.op_code) {
         CONST_INSTR_CASE(OP_CONST);
+        CONST_INSTR_CASE(OP_SET_GLOBAL);
 
-        /*SIMPLE_INSTR_CASE(OP_PRINT);*/
+        CONST_INSTR_CASE(OP_GET_GLOBAL);
+        CONST_INSTR_CASE(OP_DEFINE_GLOBAL);
+
+        BYTE_INSTR_CASE(OP_SET_LOCAL);
+        BYTE_INSTR_CASE(OP_GET_LOCAL);
+
+        SIMPLE_INSTR_CASE(OP_POP);
+        SIMPLE_INSTR_CASE(OP_PRINT);
         SIMPLE_INSTR_CASE(OP_ADD);
         SIMPLE_INSTR_CASE(OP_SUB);
         SIMPLE_INSTR_CASE(OP_MULT);
         SIMPLE_INSTR_CASE(OP_DIV);
         SIMPLE_INSTR_CASE(OP_RETURN);
         SIMPLE_INSTR_CASE(OP_NEG);
-
 
         SIMPLE_INSTR_CASE(OP_EQ);
         SIMPLE_INSTR_CASE(OP_LESS);
@@ -94,7 +109,6 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
         SIMPLE_INSTR_CASE(OP_NIL);
         SIMPLE_INSTR_CASE(OP_TRUE);
         SIMPLE_INSTR_CASE(OP_FALSE);
-
         default:
             printf("Unknown opcode %d\n", instr.op_code);
     }

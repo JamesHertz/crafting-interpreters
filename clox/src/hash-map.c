@@ -146,3 +146,20 @@ uint32_t str_hash(const char* str, size_t length) {
   }
   return hash;
 }
+
+void map_debug(HashMap * map) {
+    fputs("{ ", stdout);
+    if(map->entries) {
+        putchar('\n');
+        for(size_t i = 0; i < map->capacity; i++) {
+            HashMapEntry * entry = &map->entries[i];
+            if(entry->key != NULL) {
+                value_print(OBJ_VAL(entry->key));
+                fputs(" => ", stdout);
+                value_print(entry->value);
+                putchar('\n');
+            }
+        }
+    }
+    puts("}");
+}

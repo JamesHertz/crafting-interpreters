@@ -6,6 +6,7 @@
 #include "debug.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <assert.h>
 
@@ -13,6 +14,7 @@ typedef struct {
     LoxProgram program;    
     DaArray(LoxValue) stack;
     HashMap strings;
+    HashMap globals;
     Instruction * ip;
     LoxObject * objects;
 } LoxVM;
@@ -21,6 +23,7 @@ static void vm_init(LoxVM * vm){
     prog_init(&vm->program);
     da_init(&vm->stack);
     map_init(&vm->strings);
+    map_init(&vm->globals);
     vm->ip = NULL;
     vm->objects = NULL;
 } 
@@ -38,20 +41,31 @@ static void vm_destroy(LoxVM * vm){
     vm_free_objects(vm);
     prog_destroy(&vm->program);
     map_destroy(&vm->strings);
+    map_destroy(&vm->globals);
     da_destroy(&vm->stack);
-    vm->ip      = NULL;
+    vm->ip = NULL;
 }
 
-static void vm_push(LoxVM * vm, LoxValue value){
+static inline void vm_stack_push(LoxVM * vm, LoxValue value){
     da_push(&vm->stack, &value);
 }
 
-static LoxValue vm_pop(LoxVM * vm){
-    assert(vm->stack.length > 0 && "vm_pop(): poping from empty stack");
+static inline LoxValue vm_stack_get(LoxVM * vm, size_t idx){
+    assert(idx < vm->stack.length && "accessing invalid stack position");
+    return vm->stack.values[idx];
+}
+
+static inline void vm_stack_set(LoxVM * vm, size_t idx, LoxValue value){
+    assert(idx < vm->stack.length && "accessing invalid stack position");
+    vm->stack.values[idx] = value;
+}
+
+static inline LoxValue vm_stack_pop(LoxVM * vm){
+    assert(vm->stack.length > 0 && "poping from empty stack");
     return deref_as(LoxValue, da_pop(&vm->stack));
 }
 
-static LoxValue vm_peek(LoxVM * vm, size_t distance){
+static inline  LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
     size_t idx = vm->stack.length - (1 + distance);
     return deref_as(LoxValue, da_get(&vm->stack, idx));
 }
@@ -67,11 +81,14 @@ static void vm_register_object(LoxVM * vm, LoxObject * obj){
 }
 
 static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
-    // FIXME: use va_args and printf
-    fputs("run-time-error: ", stdout);
-    puts(format);
+    va_list list;
+    va_start(list, format);
+    fputs("run-time-error: ", stderr);
+    vfprintf(stderr, format, list);
+    va_end(list);
+
     Instruction instr = vm->ip[-1];
-    printf("[line %u] in script\n", instr.line);
+    fprintf(stderr, "\n[line %u] in script\n", instr.line);
 }
 
 
@@ -104,16 +121,18 @@ static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
 
 static LoxInterpretResult vm_run(LoxVM * vm){
 #define BINARY(op, value_constructor) do {                                     \
-        if(!VAL_IS_NUMBER(vm_peek(vm, 0)) || !VAL_IS_NUMBER(vm_peek(vm, 1))) { \
+        if(!VAL_IS_NUMBER(vm_stack_peek(vm, 0)) || !VAL_IS_NUMBER(vm_stack_peek(vm, 1))) { \
             vm_report_runtime_error(vm, "operands should both be numbers");    \
             return INTERPRET_RUNTIME_ERROR;                                    \
         }                                                                      \
-        double b = vm_pop(vm).as.number;                                       \
-        double a = vm_pop(vm).as.number;                                       \
-        vm_push(vm, value_constructor(a op b));                                \
+        double b = vm_stack_pop(vm).as.number;                                       \
+        double a = vm_stack_pop(vm).as.number;                                       \
+        vm_stack_push(vm, value_constructor(a op b));                                \
     } while(0)
 
 #define READ_BYTE() (*vm->ip++).op_code
+#define READ_STRING() VAL_AS_STRING(vm_get_constant(vm, READ_BYTE()))
+
     
     vm->ip = vm->program.code.values;
     for(;;){
@@ -132,36 +151,36 @@ static LoxInterpretResult vm_run(LoxVM * vm){
 
         OpCode instr = READ_BYTE();
         switch (instr) {
-            case OP_CONST: {
+            case OP_POP   : vm_stack_pop(vm); break;
+            case OP_CONST : {
                 uint8_t data_idx = READ_BYTE();
                 LoxValue data = prog_get_constant(&vm->program, data_idx);
-                vm_push(vm, data);
-                break;
-            } 
+                vm_stack_push(vm, data);
+            } break;
 
-            case OP_NOT: 
-                if(!VAL_IS_BOOL(vm_peek(vm, 0))) {
+            case OP_NOT : 
+                if(!VAL_IS_BOOL(vm_stack_peek(vm, 0))) {
                     vm_report_runtime_error(vm, "expected a boolean operand");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                vm_push(vm, BOOL_VAL(!vm_pop(vm).as.boolean)); 
+                vm_stack_push(vm, BOOL_VAL(!vm_stack_pop(vm).as.boolean)); 
                 break;
 
             case OP_NEG : 
-                if(!VAL_IS_NUMBER(vm_peek(vm, 0))) {
+                if(!VAL_IS_NUMBER(vm_stack_peek(vm, 0))) {
                     vm_report_runtime_error(vm, "expected a number operand");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                vm_push(vm, NUMBER_VAL(-vm_pop(vm).as.number)); 
+                vm_stack_push(vm, NUMBER_VAL(-vm_stack_pop(vm).as.number)); 
                 break;
 
             case OP_ADD : {
-                LoxValue b = vm_peek(vm, 0);
-                LoxValue a = vm_peek(vm, 1);
+                LoxValue b = vm_stack_peek(vm, 0);
+                LoxValue a = vm_stack_peek(vm, 1);
 
                 if(VAL_IS_STRING(a) || VAL_IS_STRING(b)) {
-                    const LoxString * str2 = vm_stingify_value(vm, vm_pop(vm));
-                    const LoxString * str1 = vm_stingify_value(vm,vm_pop(vm));
+                    const LoxString * str2 = vm_stingify_value(vm, vm_stack_pop(vm));
+                    const LoxString * str1 = vm_stingify_value(vm,vm_stack_pop(vm));
 
                     const LoxString * result;
                     { 
@@ -180,15 +199,15 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                             mem_dealloc(buffer);
                         }
                     }
-                    vm_push(vm, OBJ_VAL(result));
+                    vm_stack_push(vm, OBJ_VAL(result));
                 } else if(VAL_IS_NUMBER(a) && VAL_IS_NUMBER(b)) {
-                    vm_push(vm, NUMBER_VAL( vm_pop(vm).as.number + vm_pop(vm).as.number));
+                    vm_stack_push(vm, NUMBER_VAL( vm_stack_pop(vm).as.number + vm_stack_pop(vm).as.number));
                 } else {
                     vm_report_runtime_error(vm, "operator '+' expects either two integers or at least 1 string");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-            }
-                break;
+            } break;
+
             case OP_SUB : BINARY(-, NUMBER_VAL); break;
             case OP_MULT: BINARY(*, NUMBER_VAL); break;
             case OP_DIV : BINARY(/, NUMBER_VAL); break;
@@ -196,25 +215,59 @@ static LoxInterpretResult vm_run(LoxVM * vm){
             case OP_LESS    : BINARY(<, BOOL_VAL); break;
             case OP_GREATER : BINARY(>, BOOL_VAL); break;
             case OP_EQ      : 
-                vm_push(vm, BOOL_VAL(value_eq(vm_pop(vm), vm_pop(vm))));
+                vm_stack_push(vm, BOOL_VAL(value_eq(vm_stack_pop(vm), vm_stack_pop(vm))));
                 break;
 
-            case OP_TRUE  :  vm_push(vm, BOOL_VAL(true)); break;
-            case OP_FALSE :  vm_push(vm, BOOL_VAL(false)); break;
-            case OP_NIL   :  vm_push(vm, NIL_VAL); break;
+            case OP_TRUE  : vm_stack_push(vm, BOOL_VAL(true)); break;
+            case OP_FALSE : vm_stack_push(vm, BOOL_VAL(false)); break;
+            case OP_NIL   : vm_stack_push(vm, NIL_VAL); break;
+
+
+            case OP_PRINT : 
+                value_print(vm_stack_pop(vm)); 
+                putchar('\n');
+                break;
+
+            case OP_DEFINE_GLOBAL : {
+                LoxString * name = READ_STRING();
+                map_set(&vm->globals, name, vm_stack_peek(vm, 0));
+                vm_stack_pop(vm);
+            } break;
+
+            case OP_SET_GLOBAL : {
+                LoxString * name = READ_STRING();
+                LoxValue * value = map_get_mut(&vm->globals, name);
+                if(value == NULL) {
+                    vm_report_runtime_error(vm, "assigment variable '%s' not defined", name->chars);
+                    return  INTERPRET_RUNTIME_ERROR;
+                }
+                *value = vm_stack_peek(vm, 0);
+            } break;
+
+            case OP_GET_GLOBAL : {
+                LoxString * name       = READ_STRING();
+                const LoxValue * value = map_get(&vm->globals, name);
+                if(value == NULL) {
+                    vm_report_runtime_error(vm, "undefined identifier '%s'", name->chars);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                vm_stack_push(vm, *value);
+            } break;
+
+            case OP_GET_LOCAL: vm_stack_push(vm, vm_stack_get(vm, READ_BYTE())); break;
+            case OP_SET_LOCAL: vm_stack_set(vm, READ_BYTE(), vm_stack_peek(vm, 0)); break;
 
             case OP_RETURN:
-                 if(vm->stack.length > 0) {
-                     value_print(vm_pop(vm)); putchar('\n');
-                 }
                 return INTERPRET_OK;
             default:
-                assert(0 && "vm_run(): invalid opcode");
+                assert(0 && "invalid opcode");
         }
     }
 
 #undef BINARY
 #undef READ_BYTE
+#undef READ_STRING
 }
 
 LoxInterpretResult interpret(const char * source){
@@ -225,8 +278,7 @@ LoxInterpretResult interpret(const char * source){
     if(!compile(source, &vm.program, &vm.strings)) {
        res = INTERPRET_COMPILE_ERROR;
     } else {
-        vm_run(&vm);
-        res = INTERPRET_OK;
+       res = vm_run(&vm);
     }
 
     vm_destroy(&vm);

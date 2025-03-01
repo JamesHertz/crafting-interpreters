@@ -11,6 +11,7 @@
 typedef enum {
     OP_CONST,
     OP_RETURN,
+    OP_POP,
 
     // arithmetic horsemans
     OP_NEG,
@@ -30,7 +31,18 @@ typedef enum {
     // LoxValue values
     OP_NIL,
     OP_TRUE,
-    OP_FALSE
+    OP_FALSE,
+
+    // print
+    OP_PRINT,
+
+    // variables
+    OP_DEFINE_GLOBAL,
+    OP_SET_GLOBAL,
+    OP_GET_GLOBAL,
+
+    OP_SET_LOCAL,
+    OP_GET_LOCAL,
 } OpCode;
 
 // WARN: please don't alter the order <values>, <length>, <size> of the inner structs, this is crucial!
