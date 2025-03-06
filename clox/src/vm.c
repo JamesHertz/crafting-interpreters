@@ -4,11 +4,12 @@
 #include "hash-map.h"
 #include "memory.h"
 #include "debug.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <assert.h>
+/*#include <assert.h>*/
 
 typedef struct {
     LoxProgram program;    
@@ -31,7 +32,7 @@ static void vm_init(LoxVM * vm){
 static void vm_free_objects(LoxVM * vm){
     for(LoxObject * curr = vm->objects; curr;) {
         LoxObject * next = curr->next;
-        obj_destroy(curr);
+        lox_obj_destroy(curr);
         curr = next;
     }
     vm->objects = NULL;
@@ -47,27 +48,25 @@ static void vm_destroy(LoxVM * vm){
 }
 
 static inline void vm_stack_push(LoxVM * vm, LoxValue value){
-    da_push(&vm->stack, &value);
+    da_push(&vm->stack, value);
 }
 
 static inline LoxValue vm_stack_get(LoxVM * vm, size_t idx){
-    assert(idx < vm->stack.length && "accessing invalid stack position");
-    return vm->stack.values[idx];
+    ASSERTF(idx < vm->stack.length, "accessing invalid stack position");
+    return da_get(&vm->stack, idx);
 }
 
 static inline void vm_stack_set(LoxVM * vm, size_t idx, LoxValue value){
-    assert(idx < vm->stack.length && "accessing invalid stack position");
-    vm->stack.values[idx] = value;
+    da_set(&vm->stack, idx, value);
 }
 
 static inline LoxValue vm_stack_pop(LoxVM * vm){
-    assert(vm->stack.length > 0 && "poping from empty stack");
-    return deref_as(LoxValue, da_pop(&vm->stack));
+    return da_pop(&vm->stack);
 }
 
 static inline  LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
     size_t idx = vm->stack.length - (1 + distance);
-    return deref_as(LoxValue, da_get(&vm->stack, idx));
+    return da_get(&vm->stack, idx);
 }
 
 static inline LoxValue vm_get_constant(LoxVM * vm, uint8_t idx){
@@ -75,7 +74,7 @@ static inline LoxValue vm_get_constant(LoxVM * vm, uint8_t idx){
 }
 
 static void vm_register_object(LoxVM * vm, LoxObject * obj){
-    assert(obj->next == NULL && "vm_register_object(): obj->next field not null");
+    ASSERTF(obj->next == NULL, "invalid object: obj->next field not null");
     obj->next   = vm->objects;
     vm->objects = obj;
 }
@@ -83,7 +82,7 @@ static void vm_register_object(LoxVM * vm, LoxObject * obj){
 static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     va_list list;
     va_start(list, format);
-    fputs("run-time-error: ", stderr);
+    fputs("[ RunTimeError ] : ", stderr);
     vfprintf(stderr, format, list);
     va_end(list);
 
@@ -103,7 +102,7 @@ static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
     else if(VAL_IS_NIL(value))
         strcpy(buffer, "nil");
     else {
-        assert(0 && "vm_stingify_value(): reached unreachable branch");
+        UNREACHABLE();
     }
 
 
@@ -119,33 +118,47 @@ static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
     return str;
 }
 
+static bool is_falsely(LoxValue v) {
+    return v.type == VAL_NIL || (v.type == VAL_BOOL && !v.as.boolean);
+}
+
+
+// TODO:
+//  - About LoxProgram
+//      - change its name to LoxChunk of something similar
+//      - change the code struct to be just an bytearray and have another struct called metadata with other things
+//  - Add 'utils.c' and take some things from utils.h and and put them into actual functions
 static LoxInterpretResult vm_run(LoxVM * vm){
-#define BINARY(op, value_constructor) do {                                     \
+#define BINARY(op, value_constructor) do {                                                 \
         if(!VAL_IS_NUMBER(vm_stack_peek(vm, 0)) || !VAL_IS_NUMBER(vm_stack_peek(vm, 1))) { \
-            vm_report_runtime_error(vm, "operands should both be numbers");    \
-            return INTERPRET_RUNTIME_ERROR;                                    \
-        }                                                                      \
-        double b = vm_stack_pop(vm).as.number;                                       \
-        double a = vm_stack_pop(vm).as.number;                                       \
-        vm_stack_push(vm, value_constructor(a op b));                                \
+            vm_report_runtime_error(vm, "operands should both be numbers");                \
+            return INTERPRET_RUNTIME_ERROR;                                                \
+        }                                                                                  \
+        double b = vm_stack_pop(vm).as.number;                                             \
+        double a = vm_stack_pop(vm).as.number;                                             \
+        vm_stack_push(vm, value_constructor(a op b));                                      \
     } while(0)
 
-#define READ_BYTE() (*vm->ip++).op_code
+#define READ_BYTE()  (*vm->ip++).op_code
+#define READ_SHORT() (vm->ip += 2, (uint16_t) vm->ip[-1].op_code << 8 | vm->ip[-2].op_code)
 #define READ_STRING() VAL_AS_STRING(vm_get_constant(vm, READ_BYTE()))
 
-    
     vm->ip = vm->program.code.values;
     for(;;){
 
 #ifdef DEBUG_TRACE_EXECUTION
         fputs("          ", stdout);
-        DA_FOR_EACH_ELEM(LoxValue, curr, &vm->stack, {
-            bool is_str = VAL_IS_STRING(curr);
-            fputs(is_str ? "[ \"" : "[ ", stdout);
-            value_print(curr);
-            fputs(is_str ? "\" ]" : " ]", stdout);
-        });
-        putchar('\n');
+        if(vm->stack.length == 0)
+            puts("[ ]");
+        else {
+            DA_FOR_EACH_ELEM(curr, &vm->stack, {
+                bool is_str = VAL_IS_STRING(curr);
+                fputs(is_str ? "[ \"" : "[ ", stdout);
+                value_print(curr);
+                fputs(is_str ? "\" ]" : " ]", stdout);
+            });
+            putchar('\n');
+        }
         prog_instr_debug(&vm->program, (size_t) (vm->ip - vm->program.code.values));
 #endif
 
@@ -258,10 +271,28 @@ static LoxInterpretResult vm_run(LoxVM * vm){
             case OP_GET_LOCAL: vm_stack_push(vm, vm_stack_get(vm, READ_BYTE())); break;
             case OP_SET_LOCAL: vm_stack_set(vm, READ_BYTE(), vm_stack_peek(vm, 0)); break;
 
+            case OP_IF_FALSE : {
+                uint16_t offset = READ_SHORT();
+                if(is_falsely(vm_stack_peek(vm, 0))) 
+                    vm->ip += offset;
+            } break;
+
+            case OP_JUMP : {
+                uint16_t offset = READ_SHORT();
+                vm->ip += offset;
+            } break;
+
+            case OP_LOOP : {
+                uint16_t offset = READ_SHORT();
+                vm->ip -= offset;
+            } break;
+
             case OP_RETURN:
+                ASSERT(vm->stack.length == 0);
                 return INTERPRET_OK;
+
             default:
-                assert(0 && "invalid opcode");
+                UNREACHABLE();
         }
     }
 

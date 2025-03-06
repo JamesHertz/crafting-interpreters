@@ -58,8 +58,7 @@ LoxString * lox_str_copy(const char * str, size_t length, uint32_t hash);
 LoxString * lox_str_take(const char * str, size_t length, uint32_t hash);
 bool lox_str_eq(const LoxString * s1, const LoxString * s2);
 
-void obj_destroy(LoxObject * obj);
-LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2);
+void lox_obj_destroy(LoxObject * obj);
 
 static inline bool value_is_of_object_type(LoxValue value, LoxObjectType type) {
     return VAL_IS_OBJ(value) && value.as.object->type == type;

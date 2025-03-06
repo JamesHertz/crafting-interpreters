@@ -74,18 +74,7 @@ bool lox_str_eq(const LoxString * s1, const LoxString * s2) {
         && memcmp(s1->chars, s2->chars, s1->length) == 0;
 }
 
-void obj_destroy(LoxObject * obj) {
+void lox_obj_destroy(LoxObject * obj) {
     obj->next = NULL;
     mem_dealloc(obj);
 }
-
-/*LoxString * lox_str_concat(const LoxString * str1, const LoxString * str2) {*/
-/*    size_t total_length = str1->length + str2->length;*/
-/*    char * result = mem_alloc(total_length + 1);*/
-/*    result[0] = 0;*/
-/**/
-/*    strcat(result, str1->chars);*/
-/*    strcat(result + str1->length, str2->chars);*/
-/*    return lox_str_take(result, total_length);*/
-/*}*/
-

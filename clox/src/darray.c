@@ -25,7 +25,7 @@ void da_init(DaArrayAny * array, size_t elem_size) {
     array->elem_size = elem_size;
 }
 
-void * da_get(const DaArrayAny * array, size_t idx) {
+void * da_get_elem(const DaArrayAny * array, size_t idx) {
     return da_get_ptr(array, idx);
 }
 

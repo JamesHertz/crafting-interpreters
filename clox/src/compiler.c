@@ -100,6 +100,12 @@ static void psr_emit_bytes(LoxParser * psr, uint8_t byte1, uint8_t byte2) {
     psr_emit_byte(psr, byte2);
 }
 
+static size_t psr_emit_jump(LoxParser * psr, uint8_t jump_instr) {
+    psr_emit_byte(psr, jump_instr);
+    psr_emit_bytes(psr, 0, 0);
+    return psr->out_prog->code.length;
+}
+
 static uint8_t psr_add_constant(LoxParser * psr, LoxValue constant) {
     size_t constant_idx = prog_add_constant(psr->out_prog, constant);
     if(constant_idx > UINT16_MAX) {
@@ -348,7 +354,16 @@ static void psr_parse_expression(LoxParser * psr){
     psr_parse_precedence(psr, PREC_ASSIGNMENT);
 }
 
+static void psr_complete_jump(LoxParser * psr, size_t jump_op_idx) {
+    size_t offset = psr->out_prog->code.length - jump_op_idx;
 
+    if(offset > UINT16_MAX) {
+        psr_error_at(psr, &psr->previous, "");
+    } else {
+        da_get_ptr(&psr->out_prog->code, jump_op_idx - 1)->op_code = offset >> 8 & 0xFF;
+        da_get_ptr(&psr->out_prog->code, jump_op_idx - 2)->op_code = offset & 0xFF;
+    }
+}
 
 static void psr_parse_statement(LoxParser * psr) {
     if(psr_match(psr, TOKEN_PRINT)) {
@@ -362,6 +377,25 @@ static void psr_parse_statement(LoxParser * psr) {
         }
         psr_consume(psr, TOKEN_RIGHT_BRACE, "missing enclosing '}'");
         psr_end_block(psr);
+    } else if(psr_match(psr, TOKEN_IF)) {
+        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after if keyword");
+        psr_parse_expression(psr);
+        psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' after if expression");
+
+        size_t skip_if_jump = psr_emit_jump(psr, OP_IF_FALSE);
+        psr_parse_statement(psr);
+        psr_emit_byte(psr, OP_POP);
+
+        if(psr_match(psr, TOKEN_ELSE)) {
+            size_t skip_else_jump = psr_emit_jump(psr, OP_JUMP);
+            psr_complete_jump(psr, skip_if_jump);
+            psr_emit_byte(psr, OP_POP);
+            psr_parse_statement(psr);
+            psr_complete_jump(psr, skip_else_jump);
+        } else {
+            psr_complete_jump(psr, skip_if_jump);
+        }
+
     } else {
         psr_parse_expression(psr);
         psr_emit_byte(psr, OP_POP);

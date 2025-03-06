@@ -43,12 +43,17 @@ typedef enum {
 
     OP_SET_LOCAL,
     OP_GET_LOCAL,
+
+    // control flow
+    OP_IF_FALSE,
+    OP_JUMP,
+    OP_LOOP,
 } OpCode;
 
 // WARN: please don't alter the order <values>, <length>, <size> of the inner structs, this is crucial!
 typedef struct {
     uint32_t line;
-    uint8_t op_code;
+    uint8_t  op_code;
 } Instruction;
 
 typedef struct {

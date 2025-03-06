@@ -35,11 +35,11 @@ void prog_destroy(LoxProgram * p){
 }
 
 LoxValue prog_get_constant(const LoxProgram * p, size_t idx){
-    return deref_as(LoxValue, da_get(&p->constants, idx));
+    return da_get(&p->constants, idx);
 }
 
 size_t prog_add_constant(LoxProgram * p, LoxValue value){
-    da_push(&p->constants, &value);
+    da_push(&p->constants, value);
     return p->constants.length - 1;
 }
 
@@ -48,32 +48,49 @@ void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
         .op_code = op_code,
         .line    = line
     };
-    da_push(&p->code, &tmp);
+    da_push(&p->code, tmp);
 }
 
 
 static size_t print_byte_instr(const char * name, const LoxProgram * p, size_t offset){
-    Instruction constant = deref_as(Instruction, da_get(&p->code, offset + 1));
+    Instruction constant = da_get(&p->code, offset + 1);
     printf("%-16s %4d\n", name, constant.op_code);
     return offset + 2;
 }
 
 static size_t print_constant_instr(const char * name, const LoxProgram * p, size_t offset){
-    Instruction constant = deref_as(Instruction, da_get(&p->code, offset + 1));
+    Instruction constant = da_get(&p->code, offset + 1);
     printf("%-16s %4d ", name, constant.op_code);
-    value_print(deref_as(LoxValue, da_get(&p->constants, constant.op_code)));
+
+    LoxValue value = da_get(&p->constants, constant.op_code);
+    if(VAL_IS_STRING(value)) {
+        putchar('"');
+        value_print(value);
+        putchar('"');
+    } else 
+        value_print(value);
+
     putchar('\n');
     return offset + 2;
 }
 
+static size_t print_jump_instr(const char * name, const LoxProgram * p, size_t offset, int sign) {
+    size_t jump_length = (size_t) da_get(&p->code, offset + 2).op_code << 8 | da_get(&p->code, offset + 1).op_code;
+    size_t jump_target = offset + 3 + jump_length * sign;
+    printf("%-16s %4zu (%04zu)", name, jump_length, jump_target);
+    putchar('\n');
+    return offset + 3;
+}
+
 size_t prog_instr_debug(const LoxProgram * p, size_t offset){
-#define SIMPLE_INSTR_CASE(opcode) case opcode: puts(#opcode); break
-#define CONST_INSTR_CASE(opcode)  case opcode: return print_constant_instr(#opcode, p, offset)
-#define BYTE_INSTR_CASE(opcode)   case opcode: return print_byte_instr(#opcode, p, offset)
-    Instruction instr = deref_as(Instruction, da_get(&p->code, offset));
+#define SIMPLE_INSTR_CASE(opcode)       case opcode: puts(#opcode); break
+#define CONST_INSTR_CASE(opcode)        case opcode: return print_constant_instr(#opcode, p, offset)
+#define BYTE_INSTR_CASE(opcode)         case opcode: return print_byte_instr(#opcode, p, offset)
+#define JUMP_INSTR_CASE(opcode, sign)   case opcode: return print_jump_instr(#opcode, p, offset, sign)
+    Instruction instr = da_get(&p->code, offset);
 
     printf("%04zu ", offset);
-    if(offset > 0 && deref_as(Instruction, da_get(&p->code, offset - 1)).line == instr.line) {
+    if(offset > 0 && da_get(&p->code, offset - 1).line == instr.line) {
         fputs("   | ", stdout);
     } else {
         printf("%4d ", instr.line);
@@ -109,6 +126,10 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
         SIMPLE_INSTR_CASE(OP_NIL);
         SIMPLE_INSTR_CASE(OP_TRUE);
         SIMPLE_INSTR_CASE(OP_FALSE);
+
+        JUMP_INSTR_CASE(OP_JUMP, 1);
+        JUMP_INSTR_CASE(OP_IF_FALSE, 1);
+        JUMP_INSTR_CASE(OP_LOOP, -1);
         default:
             printf("Unknown opcode %d\n", instr.op_code);
     }
