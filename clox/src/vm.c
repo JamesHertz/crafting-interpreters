@@ -309,7 +309,8 @@ LoxInterpretResult interpret(const char * source){
     if(!compile(source, &vm.program, &vm.strings)) {
        res = INTERPRET_COMPILE_ERROR;
     } else {
-       res = vm_run(&vm);
+        prog_debug(&vm.program, "while loop thing c:");
+        res = vm_run(&vm);
     }
 
     vm_destroy(&vm);

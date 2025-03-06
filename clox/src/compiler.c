@@ -354,49 +354,72 @@ static void psr_parse_expression(LoxParser * psr){
     psr_parse_precedence(psr, PREC_ASSIGNMENT);
 }
 
-static void psr_complete_jump(LoxParser * psr, size_t jump_op_idx) {
-    size_t offset = psr->out_prog->code.length - jump_op_idx;
-
-    if(offset > UINT16_MAX) {
-        psr_error_at(psr, &psr->previous, "");
+static void psr_write_jump_length(LoxParser * psr, size_t offset, size_t length) {
+    if(length > UINT16_MAX) {
+        psr_error_at(psr, &psr->previous, "jump length larger than 65535");
     } else {
-        da_get_ptr(&psr->out_prog->code, jump_op_idx - 1)->op_code = offset >> 8 & 0xFF;
-        da_get_ptr(&psr->out_prog->code, jump_op_idx - 2)->op_code = offset & 0xFF;
+        da_get_ptr(&psr->out_prog->code, offset - 1)->op_code = length >> 8 & 0xFF;
+        da_get_ptr(&psr->out_prog->code, offset - 2)->op_code = length & 0xFF;
     }
 }
 
+static void psr_emit_loop(LoxParser * psr, size_t target_instr_offset) {
+    psr_emit_jump(psr, OP_LOOP);
+    size_t length = psr->out_prog->code.length - target_instr_offset;
+    psr_write_jump_length(psr, psr->out_prog->code.length, length);
+}
+
+static inline void psr_complete_jump(LoxParser * psr, size_t jump_op_offset) {
+    size_t length = psr->out_prog->code.length - jump_op_offset;
+    psr_write_jump_length(psr, jump_op_offset, length);
+}
+
 static void psr_parse_statement(LoxParser * psr) {
-    if(psr_match(psr, TOKEN_PRINT)) {
+    if(psr_match(psr, TOKEN_PRINT)) { // print statement
         psr_parse_expression(psr);
         psr_emit_byte(psr, OP_PRINT);
         psr_consume_semicolon(psr);
-    } else if(psr_match(psr, TOKEN_LEFT_BRACE)) {
+    } else if(psr_match(psr, TOKEN_LEFT_BRACE)) { // block statement
         psr_start_block(psr);
         while(!(psr_check(psr, TOKEN_RIGHT_BRACE) || psr_check(psr, TOKEN_EOF))){
             psr_parse_declaration(psr);
         }
         psr_consume(psr, TOKEN_RIGHT_BRACE, "missing enclosing '}'");
         psr_end_block(psr);
-    } else if(psr_match(psr, TOKEN_IF)) {
+    } else if(psr_match(psr, TOKEN_IF)) { // if statement
         psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after if keyword");
         psr_parse_expression(psr);
         psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' after if expression");
 
-        size_t skip_if_jump = psr_emit_jump(psr, OP_IF_FALSE);
-        psr_parse_statement(psr);
+        size_t if_jump_offset = psr_emit_jump(psr, OP_IF_FALSE);
         psr_emit_byte(psr, OP_POP);
+        psr_parse_statement(psr);
 
         if(psr_match(psr, TOKEN_ELSE)) {
-            size_t skip_else_jump = psr_emit_jump(psr, OP_JUMP);
-            psr_complete_jump(psr, skip_if_jump);
+            size_t else_jump_offset = psr_emit_jump(psr, OP_JUMP);
+            psr_complete_jump(psr, if_jump_offset);
             psr_emit_byte(psr, OP_POP);
             psr_parse_statement(psr);
-            psr_complete_jump(psr, skip_else_jump);
+            psr_complete_jump(psr, else_jump_offset);
         } else {
-            psr_complete_jump(psr, skip_if_jump);
+            psr_complete_jump(psr, if_jump_offset);
         }
 
-    } else {
+    } else if(psr_match(psr, TOKEN_WHILE)) { // while statement
+        size_t while_expr_offset = psr->out_prog->code.length;
+
+        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after while keyword");
+        psr_parse_expression(psr);
+        psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' after while expression");
+
+        size_t while_jump_offset = psr_emit_jump(psr, OP_IF_FALSE);
+        psr_emit_byte(psr, OP_POP);
+        psr_parse_statement(psr);
+        psr_emit_loop(psr, while_expr_offset);
+
+        psr_complete_jump(psr, while_jump_offset);
+        psr_emit_byte(psr, OP_POP);
+    } else { // expression statement
         psr_parse_expression(psr);
         psr_emit_byte(psr, OP_POP);
         psr_consume_semicolon(psr);
