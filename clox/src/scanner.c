@@ -1,9 +1,9 @@
-#include "scanner.h"
-
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
-#include <assert.h>
+
+#include "scanner.h"
+#include "utils.h"
 
 #define isletter(c) ((c) == '_' || isalpha(c))
 
@@ -293,7 +293,7 @@ char * tt2str(TokenType token){
 
         // extra
         CASE(TOKEN_ERROR); CASE(TOKEN_EOF);
-        default: assert(0 && "unexpected token type");
+        default: UNREACHABLE();
     }
 
 }

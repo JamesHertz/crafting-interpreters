@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 #include "value.h"
 #include "memory.h"
+#include "utils.h"
 
 void value_print(LoxValue value){
     switch(value.type) {
@@ -17,11 +17,11 @@ void value_print(LoxValue value){
             fputs("nil", stdout);
             break;
         case VAL_OBJ:
-            assert(VAL_IS_STRING(value));
+            ASSERT(VAL_IS_STRING(value));
             fputs(VAL_AS_CSTRING(value), stdout);
             break;
         default:
-            assert(0 && "value_print(): invalid value type");
+            UNREACHABLE();
     }
 }
 
@@ -39,7 +39,7 @@ bool value_eq(LoxValue v1, LoxValue v2) {
         case VAL_OBJ:
             return v1.as.object == v2.as.object;
         default:
-            assert(0 && "value_print(): invalid value type");
+            UNREACHABLE();
     }
     return false;
 }
@@ -53,7 +53,6 @@ LoxString * lox_str_take(const char * str, size_t length, uint32_t hash) {
     lstr->chars  = str;
     lstr->length = length;
     lstr->hash   = hash;
-    /*lstr->hash   = hash_str(str, size);*/
     return lstr;
 }
 

@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 #include "program.h"
 #include "darray.h"
 #include "memory.h"
+#include "utils.h"
 
 void prog_init(LoxProgram * p){
     da_init(&p->code);
@@ -21,7 +21,7 @@ static void free_objects(LoxProgram * p) {
             str->chars    = NULL;
             str->length   = 0;
             str->obj.type = 0;
-            assert(str->obj.next == NULL);
+            ASSERT(str->obj.next == NULL);
 
             mem_dealloc(str);
         }

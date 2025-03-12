@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define MAX_LOCALS (UINT8_MAX + 1)
+#include "constants.h"
 
 typedef struct {
     Token name;
@@ -100,12 +100,6 @@ static void psr_emit_bytes(LoxParser * psr, uint8_t byte1, uint8_t byte2) {
     psr_emit_byte(psr, byte2);
 }
 
-static size_t psr_emit_jump(LoxParser * psr, uint8_t jump_instr) {
-    psr_emit_byte(psr, jump_instr);
-    psr_emit_bytes(psr, 0, 0);
-    return psr->out_prog->code.length;
-}
-
 static uint8_t psr_add_constant(LoxParser * psr, LoxValue constant) {
     size_t constant_idx = prog_add_constant(psr->out_prog, constant);
     if(constant_idx > UINT16_MAX) {
@@ -176,12 +170,12 @@ static void psr_parse_precedence(LoxParser * psr, ExprPrecedence prec) {
     rule->prefix(psr);
 
     while((rule = get_parse_rule(psr->current.type))->precedence >= prec) {
-        ASSERTF(rule->infix != NULL, "BUG: rule->infix is NULL");
+        ASSERTF(rule->infix != NULL, "BUG: rule->infix is NULL (token = %s)", tt2str(psr->current.type));
         psr_advance(psr);
         rule->infix(psr);
     }
 
-    if(psr->can_assign && psr_match(psr, TOKEN_EQUAL)) {
+    if(!psr->can_assign && psr_match(psr, TOKEN_EQUAL)) {
         psr_error_at(psr, &psr->previous, "invalid assignment target");
     } 
 }
@@ -216,12 +210,12 @@ static inline bool psr_in_global_scope(LoxParser * psr) {
     return psr->currentScope == 0;
 }
 
-static inline void psr_start_block(LoxParser * psr) {
+static inline void psr_begin_scope(LoxParser * psr) {
     ASSERT(psr->currentScope < UINT32_MAX);
     psr->currentScope++;
 }
 
-static void psr_end_block(LoxParser * psr) {
+static void psr_end_scope(LoxParser * psr) {
     ASSERT(psr->currentScope > 0);
 
     // FIXME: use a OP_POP_N instruction
@@ -261,6 +255,36 @@ static void psr_alloc_local_var(LoxParser * psr, Token name) {
     }
 }
 
+static inline size_t psr_current_offset(LoxParser * psr) {
+    return psr->out_prog->code.length;
+}
+
+static void psr_write_jump_length(LoxParser * psr, size_t offset, size_t length) {
+    if(length > UINT16_MAX) {
+        psr_error_at(psr, &psr->previous, "jump length larger than 65535");
+    } else {
+        da_get_ptr(&psr->out_prog->code, offset - 1)->op_code = length >> 8 & 0xFF;
+        da_get_ptr(&psr->out_prog->code, offset - 2)->op_code = length & 0xFF;
+    }
+}
+
+static size_t psr_emit_jump(LoxParser * psr, uint8_t jump_instr) {
+    psr_emit_byte(psr, jump_instr);
+    psr_emit_bytes(psr, 0, 0);
+    return psr->out_prog->code.length;
+}
+
+static void psr_emit_loop(LoxParser * psr, size_t target_instr_offset) {
+    psr_emit_jump(psr, OP_LOOP);
+    size_t length = psr->out_prog->code.length - target_instr_offset;
+    psr_write_jump_length(psr, psr->out_prog->code.length, length);
+}
+
+static inline void psr_complete_jump(LoxParser * psr, size_t jump_op_offset) {
+    size_t length = psr->out_prog->code.length - jump_op_offset;
+    psr_write_jump_length(psr, jump_op_offset, length);
+}
+
 // actually parsing stuffs
 static void psr_parse_string(LoxParser * psr) {
     Token * token = &psr->previous;
@@ -274,7 +298,6 @@ static void psr_parse_number(LoxParser * psr) {
     double value = strtod(psr->previous.start, NULL);
     psr_emit_constant(psr, NUMBER_VAL(value));
 }
-
 
 static void psr_parse_variable(LoxParser * psr) {
     ssize_t idx;
@@ -323,29 +346,41 @@ static void psr_parse_grouping(LoxParser * psr){
 static void psr_parse_binary(LoxParser * psr) {
     TokenType op = psr->previous.type;
     ExprPrecedence prec = get_parse_rule(op)->precedence;
-    psr_parse_precedence(psr, prec + 1);
+
+    if(prec != PREC_AND && prec != PREC_OR)
+        psr_parse_precedence(psr, prec + 1);
 
     switch(op) {
+        // arithmetic
         case TOKEN_PLUS  : psr_emit_byte(psr, OP_ADD);  break;
         case TOKEN_MINUS : psr_emit_byte(psr, OP_SUB);  break;
         case TOKEN_STAR  : psr_emit_byte(psr, OP_MULT); break;
         case TOKEN_SLASH : psr_emit_byte(psr, OP_DIV);  break;
-        default: UNREACHABLE();
-    }
-}
 
-static void psr_parse_comparison(LoxParser * psr) {
-    TokenType op = psr->previous.type;
-    ExprPrecedence prec = get_parse_rule(op)->precedence;
-    psr_parse_precedence(psr, prec + 1);
+        // and and or
+        case TOKEN_AND   : {
+            size_t offset = psr_emit_jump(psr, OP_IF_FALSE);
+            psr_emit_byte(psr, OP_POP);
+            psr_parse_precedence(psr, prec + 1);
+            psr_complete_jump(psr, offset);
+        } break;
+        case TOKEN_OR    : {
+            size_t false_offset = psr_emit_jump(psr, OP_IF_FALSE);
+            size_t true_offset  = psr_emit_jump(psr, OP_JUMP);
+            psr_complete_jump(psr, false_offset);
+            psr_emit_byte(psr, OP_POP);
+            psr_parse_precedence(psr, prec + 1);
+            psr_complete_jump(psr, true_offset);
+        } break;
 
-    switch(op) {
-        case TOKEN_EQUAL_EQUAL   : psr_emit_byte(psr, OP_EQ); break;
-        case TOKEN_BANG_EQUAL    : psr_emit_bytes(psr, OP_EQ, OP_NOT); break;
-        case TOKEN_GREATER       : psr_emit_byte(psr, OP_GREATER); break;
-        case TOKEN_LESS          : psr_emit_byte(psr, OP_LESS); break;
-        case TOKEN_GREATER_EQUAL : psr_emit_bytes(psr, OP_LESS, OP_NOT); break;
+        // comparison
+        case TOKEN_EQUAL_EQUAL   : psr_emit_byte(psr, OP_EQ);                       break;
+        case TOKEN_BANG_EQUAL    : psr_emit_bytes(psr, OP_EQ, OP_NOT);      break;
+        case TOKEN_GREATER       : psr_emit_byte(psr, OP_GREATER);                  break;
+        case TOKEN_LESS          : psr_emit_byte(psr, OP_LESS);                     break;
+        case TOKEN_GREATER_EQUAL : psr_emit_bytes(psr, OP_LESS, OP_NOT);    break;
         case TOKEN_LESS_EQUAL    : psr_emit_bytes(psr, OP_GREATER, OP_NOT); break;
+
         default: UNREACHABLE();
     }
 }
@@ -354,24 +389,22 @@ static void psr_parse_expression(LoxParser * psr){
     psr_parse_precedence(psr, PREC_ASSIGNMENT);
 }
 
-static void psr_write_jump_length(LoxParser * psr, size_t offset, size_t length) {
-    if(length > UINT16_MAX) {
-        psr_error_at(psr, &psr->previous, "jump length larger than 65535");
+static void psr_parse_var_declaration(LoxParser * psr) {
+    psr_consume(psr, TOKEN_IDENTIFIER, "expected an identifier after 'var' keyword");
+
+    Token name = psr->previous;
+    if(psr_match(psr, TOKEN_EQUAL))
+        psr_parse_expression(psr);
+    else
+        psr_emit_byte(psr, OP_NIL);
+
+    if(psr_in_global_scope(psr)) {
+        uint8_t idx = psr_add_str_constant(psr, name.start, name.length);
+        psr_emit_bytes(psr, OP_DEFINE_GLOBAL, idx);
     } else {
-        da_get_ptr(&psr->out_prog->code, offset - 1)->op_code = length >> 8 & 0xFF;
-        da_get_ptr(&psr->out_prog->code, offset - 2)->op_code = length & 0xFF;
+        psr_alloc_local_var(psr, name);
     }
-}
 
-static void psr_emit_loop(LoxParser * psr, size_t target_instr_offset) {
-    psr_emit_jump(psr, OP_LOOP);
-    size_t length = psr->out_prog->code.length - target_instr_offset;
-    psr_write_jump_length(psr, psr->out_prog->code.length, length);
-}
-
-static inline void psr_complete_jump(LoxParser * psr, size_t jump_op_offset) {
-    size_t length = psr->out_prog->code.length - jump_op_offset;
-    psr_write_jump_length(psr, jump_op_offset, length);
 }
 
 static void psr_parse_statement(LoxParser * psr) {
@@ -380,12 +413,12 @@ static void psr_parse_statement(LoxParser * psr) {
         psr_emit_byte(psr, OP_PRINT);
         psr_consume_semicolon(psr);
     } else if(psr_match(psr, TOKEN_LEFT_BRACE)) { // block statement
-        psr_start_block(psr);
+        psr_begin_scope(psr);
         while(!(psr_check(psr, TOKEN_RIGHT_BRACE) || psr_check(psr, TOKEN_EOF))){
             psr_parse_declaration(psr);
         }
         psr_consume(psr, TOKEN_RIGHT_BRACE, "missing enclosing '}'");
-        psr_end_block(psr);
+        psr_end_scope(psr);
     } else if(psr_match(psr, TOKEN_IF)) { // if statement
         psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after if keyword");
         psr_parse_expression(psr);
@@ -405,8 +438,51 @@ static void psr_parse_statement(LoxParser * psr) {
             psr_complete_jump(psr, if_jump_offset);
         }
 
+    } else if(psr_match(psr, TOKEN_FOR)) { // for statement
+        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after for keyword");
+
+        psr_begin_scope(psr);
+
+        if(!psr_match(psr, TOKEN_SEMICOLON)) {
+            if(psr_match(psr, TOKEN_VAR))
+                psr_parse_var_declaration(psr);
+            else {
+                psr_parse_expression(psr);
+                psr_emit_byte(psr, OP_POP);
+            }
+            psr_consume(psr, TOKEN_SEMICOLON, "expected ';' after for loop initialization");
+        }
+
+        size_t cond_offset = psr_current_offset(psr);
+        if(!psr_match(psr, TOKEN_SEMICOLON)) {
+            psr_parse_expression(psr);
+            psr_consume(psr, TOKEN_SEMICOLON, "expected ';' after for loop expression");
+        } else {
+            psr_emit_byte(psr, OP_TRUE);
+        }
+
+        size_t jump_to_end_offset  = psr_emit_jump(psr, OP_IF_FALSE);
+        psr_emit_byte(psr, OP_POP);
+        size_t jump_to_body_offset = psr_emit_jump(psr, OP_JUMP);
+
+        size_t end_offset = psr_current_offset(psr);
+        if(!psr_match(psr, TOKEN_RIGHT_PAREN)) {
+            psr_parse_expression(psr);
+            psr_emit_byte(psr, OP_POP);
+            psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' before for loop body");
+        }
+        psr_emit_loop(psr, cond_offset);
+
+        psr_complete_jump(psr, jump_to_body_offset);
+        psr_parse_statement(psr);
+        psr_emit_loop(psr, end_offset);
+
+        psr_complete_jump(psr, jump_to_end_offset);
+        psr_emit_byte(psr, OP_POP); // for `for's condition`
+
+        psr_end_scope(psr);
     } else if(psr_match(psr, TOKEN_WHILE)) { // while statement
-        size_t while_expr_offset = psr->out_prog->code.length;
+        size_t while_expr_offset = psr_current_offset(psr);
 
         psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after while keyword");
         psr_parse_expression(psr);
@@ -428,26 +504,11 @@ static void psr_parse_statement(LoxParser * psr) {
 
 static void psr_parse_declaration(LoxParser * psr) {
     if(psr_match(psr, TOKEN_VAR)) {
-        psr_consume(psr, TOKEN_IDENTIFIER, "expected an identifier after 'var' keyword");
-
-        Token name = psr->previous;
-        if(psr_match(psr, TOKEN_EQUAL))
-            psr_parse_expression(psr);
-        else
-            psr_emit_byte(psr, OP_NIL);
-
-        if(psr_in_global_scope(psr)) {
-            uint8_t idx = psr_add_str_constant(psr, name.start, name.length);
-            psr_emit_bytes(psr, OP_DEFINE_GLOBAL, idx);
-        } else {
-            psr_alloc_local_var(psr, name);
-        }
-
+        psr_parse_var_declaration(psr);
         psr_consume_semicolon(psr);
     } else {
         psr_parse_statement(psr);
     }
-
 
     if(psr->in_panic_mode) psr_syncronize(psr);
 }
@@ -479,31 +540,30 @@ static LoxParserRule rules[] = {
 
     // One or two character tokens.
     [TOKEN_BANG]          = { psr_parse_unary, NULL, PREC_UNARY },
-    [TOKEN_BANG_EQUAL]    = { psr_parse_comparison, NULL, PREC_EQUALITY   },
+    [TOKEN_BANG_EQUAL]    = { NULL, psr_parse_binary, PREC_EQUALITY   },
     [TOKEN_EQUAL]         = { NULL, NULL, PREC_NONE },
-    [TOKEN_EQUAL_EQUAL]   = { NULL, psr_parse_comparison, PREC_EQUALITY   },
-    [TOKEN_GREATER]       = { NULL, psr_parse_comparison, PREC_COMPARISON },
-    [TOKEN_GREATER_EQUAL] = { NULL, psr_parse_comparison, PREC_COMPARISON },
-    [TOKEN_LESS]          = { NULL, psr_parse_comparison, PREC_COMPARISON },
-    [TOKEN_LESS_EQUAL]    = { NULL, psr_parse_comparison, PREC_COMPARISON },
+    [TOKEN_EQUAL_EQUAL]   = { NULL, psr_parse_binary, PREC_EQUALITY   },
+    [TOKEN_GREATER]       = { NULL, psr_parse_binary, PREC_COMPARISON },
+    [TOKEN_GREATER_EQUAL] = { NULL, psr_parse_binary, PREC_COMPARISON },
+    [TOKEN_LESS]          = { NULL, psr_parse_binary, PREC_COMPARISON },
+    [TOKEN_LESS_EQUAL]    = { NULL, psr_parse_binary, PREC_COMPARISON },
 
     // Literals.
     [TOKEN_IDENTIFIER]    = { psr_parse_variable, NULL, PREC_NONE },
-    [TOKEN_STRING]        = { psr_parse_string, NULL, PREC_NONE },
-    [TOKEN_NUMBER]        = { psr_parse_number, NULL, PREC_NONE },
+    [TOKEN_STRING]        = { psr_parse_string,   NULL, PREC_NONE },
+    [TOKEN_NUMBER]        = { psr_parse_number,   NULL, PREC_NONE },
 
     // Keywords.
-    [TOKEN_NIL]           = { psr_parse_primary, NULL, PREC_PRIMARY },
-    [TOKEN_TRUE]          = { psr_parse_primary, NULL, PREC_PRIMARY },
-    [TOKEN_FALSE]         = { psr_parse_primary, NULL, PREC_PRIMARY },
+    [TOKEN_NIL]           = { psr_parse_primary, NULL, PREC_NONE },
+    [TOKEN_TRUE]          = { psr_parse_primary, NULL, PREC_NONE },
+    [TOKEN_FALSE]         = { psr_parse_primary, NULL, PREC_NONE },
 
-    [TOKEN_AND]           = { NULL, NULL, PREC_NONE },
-    [TOKEN_CLASS]         = { NULL, NULL, PREC_NONE },
+    [TOKEN_AND]           = { NULL, psr_parse_binary, PREC_AND  },
     [TOKEN_ELSE]          = { NULL, NULL, PREC_NONE },
     [TOKEN_FOR]           = { NULL, NULL, PREC_NONE },
     [TOKEN_FUN]           = { NULL, NULL, PREC_NONE },
     [TOKEN_IF]            = { NULL, NULL, PREC_NONE },
-    [TOKEN_OR]            = { NULL, NULL, PREC_NONE },
+    [TOKEN_OR]            = { NULL, psr_parse_binary, PREC_OR   },
     [TOKEN_PRINT]         = { NULL, NULL, PREC_NONE },
     [TOKEN_RETURN]        = { NULL, NULL, PREC_NONE },
     [TOKEN_SUPER]         = { NULL, NULL, PREC_NONE },

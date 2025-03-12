@@ -1,14 +1,14 @@
 #include <stdio.h>
-#include <assert.h>
 
 #include "hash-map.h"
 #include "memory.h"
+#include "utils.h"
 
 #define MAP_MAX_LOAD 0.75
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 
 static HashMapEntry * find_entry(HashMapEntry * entries, size_t capacity, const LoxString * key) {
-    assert(entries != NULL && "invalid entries list");
+    ASSERTF(entries != NULL, "invalid entries list");
 
     size_t idx = key->hash % capacity;
     HashMapEntry * deleted = NULL;

@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #define CLOX_DARRAY_NO_MACROS
 
 #include "darray.h"
 #include "memory.h"
+#include "utils.h"
 
 // TODO: refactor this
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
@@ -45,7 +45,7 @@ void da_push(DaArrayAny * array, const void * elem) {
 }
 
 void * da_pop(DaArrayAny * array) {
-    assert(array->length > 0 && "called `da_pop()` from an empty array");
+    ASSERTF(array->length > 0 , "called `da_pop()` from an empty array");
     void * ptr = da_get_ptr(array, array->length - 1);
     array->length--;
     return ptr;

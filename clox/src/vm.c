@@ -6,14 +6,23 @@
 #include "debug.h"
 #include "utils.h"
 
+#include "constants.h"
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-/*#include <assert.h>*/
+
+
+#define MAX_STACK_SIZE MAX_LOCALS
 
 typedef struct {
     LoxProgram program;    
-    DaArray(LoxValue) stack;
+
+    struct {
+        LoxValue values[MAX_STACK_SIZE];
+        size_t length;
+    } stack;
+
     HashMap strings;
     HashMap globals;
     Instruction * ip;
@@ -22,11 +31,11 @@ typedef struct {
 
 static void vm_init(LoxVM * vm){
     prog_init(&vm->program);
-    da_init(&vm->stack);
     map_init(&vm->strings);
     map_init(&vm->globals);
-    vm->ip = NULL;
-    vm->objects = NULL;
+    vm->ip           = NULL;
+    vm->objects      = NULL;
+    vm->stack.length = 0;
 } 
 
 static void vm_free_objects(LoxVM * vm){
@@ -43,30 +52,34 @@ static void vm_destroy(LoxVM * vm){
     prog_destroy(&vm->program);
     map_destroy(&vm->strings);
     map_destroy(&vm->globals);
-    da_destroy(&vm->stack);
     vm->ip = NULL;
+    vm->stack.length = 0;
 }
 
 static inline void vm_stack_push(LoxVM * vm, LoxValue value){
-    da_push(&vm->stack, value);
+    ASSERTF(vm->stack.length < MAX_STACK_SIZE, "stack overflow");
+    vm->stack.values[vm->stack.length++] = value;
 }
 
 static inline LoxValue vm_stack_get(LoxVM * vm, size_t idx){
     ASSERTF(idx < vm->stack.length, "accessing invalid stack position");
-    return da_get(&vm->stack, idx);
+    return vm->stack.values[idx];
 }
 
 static inline void vm_stack_set(LoxVM * vm, size_t idx, LoxValue value){
-    da_set(&vm->stack, idx, value);
+    ASSERT(idx < vm->stack.length);
+    vm->stack.values[idx] = value;
 }
 
 static inline LoxValue vm_stack_pop(LoxVM * vm){
-    return da_pop(&vm->stack);
+    ASSERT(vm->stack.length > 0);
+    return vm->stack.values[--vm->stack.length];
 }
 
 static inline  LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
     size_t idx = vm->stack.length - (1 + distance);
-    return da_get(&vm->stack, idx);
+    ASSERT(idx <= MAX_STACK_SIZE);
+    return vm->stack.values[idx];
 }
 
 static inline LoxValue vm_get_constant(LoxVM * vm, uint8_t idx){
@@ -105,7 +118,6 @@ static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
         UNREACHABLE();
     }
 
-
     size_t length = strlen(buffer);
     uint32_t hash = str_hash(buffer, length);
 
@@ -124,10 +136,11 @@ static bool is_falsely(LoxValue v) {
 
 
 // TODO:
-//  - About LoxProgram
-//      - change its name to LoxChunk of something similar
-//      - change the code struct to be just an bytearray and have another struct called metadata with other things
-//  - Add 'utils.c' and take some things from utils.h and and put them into actual functions
+//  - [x] Make vm.stack be a static array c:
+//  - [ ] About LoxProgram
+//      - [ ] change its name to LoxChunk of something similar
+//      - [ ] change the code struct to be just an bytearray and have another struct called metadata with other things
+//  - [x] Add 'utils.c' and take some things from utils.h and and put them into actual functions
 static LoxInterpretResult vm_run(LoxVM * vm){
 #define BINARY(op, value_constructor) do {                                                 \
         if(!VAL_IS_NUMBER(vm_stack_peek(vm, 0)) || !VAL_IS_NUMBER(vm_stack_peek(vm, 1))) { \
@@ -151,12 +164,13 @@ static LoxInterpretResult vm_run(LoxVM * vm){
         if(vm->stack.length == 0)
             puts("[ ]");
         else {
-            DA_FOR_EACH_ELEM(curr, &vm->stack, {
+            for(size_t i = 0; i < vm->stack.length; i++) {
+                LoxValue curr = vm->stack.values[i];
                 bool is_str = VAL_IS_STRING(curr);
                 fputs(is_str ? "[ \"" : "[ ", stdout);
                 value_print(curr);
                 fputs(is_str ? "\" ]" : " ]", stdout);
-            });
+            }
             putchar('\n');
         }
         prog_instr_debug(&vm->program, (size_t) (vm->ip - vm->program.code.values));
@@ -212,6 +226,7 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                             mem_dealloc(buffer);
                         }
                     }
+
                     vm_stack_push(vm, OBJ_VAL(result));
                 } else if(VAL_IS_NUMBER(a) && VAL_IS_NUMBER(b)) {
                     vm_stack_push(vm, NUMBER_VAL( vm_stack_pop(vm).as.number + vm_stack_pop(vm).as.number));
@@ -252,7 +267,7 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                 LoxValue * value = map_get_mut(&vm->globals, name);
                 if(value == NULL) {
                     vm_report_runtime_error(vm, "assigment variable '%s' not defined", name->chars);
-                    return  INTERPRET_RUNTIME_ERROR;
+                    return INTERPRET_RUNTIME_ERROR;
                 }
                 *value = vm_stack_peek(vm, 0);
             } break;
@@ -264,7 +279,6 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                     vm_report_runtime_error(vm, "undefined identifier '%s'", name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
-
                 vm_stack_push(vm, *value);
             } break;
 
@@ -309,7 +323,7 @@ LoxInterpretResult interpret(const char * source){
     if(!compile(source, &vm.program, &vm.strings)) {
        res = INTERPRET_COMPILE_ERROR;
     } else {
-        prog_debug(&vm.program, "while loop thing c:");
+        /*prog_debug(&vm.program, "while loop thing c:");*/
         res = vm_run(&vm);
     }
 

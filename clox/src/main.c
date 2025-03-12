@@ -88,7 +88,6 @@ int main(int argc, char ** argv){
 /*#include <sys/time.h>*/
 /*#include <string.h>*/
 /*#include <errno.h>*/
-/*#include <assert.h>*/
 /**/
 /*typedef DaArray(const char *) StrArray;*/
 /*bool da_find_value(StrArray * array, const char * value) {*/
