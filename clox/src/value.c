@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "value.h"
+#include "function.h"
 #include "memory.h"
 #include "utils.h"
 
@@ -17,11 +18,21 @@ void value_print(LoxValue value){
             fputs("nil", stdout);
             break;
         case VAL_OBJ:
-            ASSERT(VAL_IS_STRING(value));
-            fputs(VAL_AS_CSTRING(value), stdout);
-            break;
-        default:
-            UNREACHABLE();
+            switch(value.as.object->type) {
+                case OBJ_STRING:
+                    fputs(VAL_AS_CSTRING(value), stdout);
+                    break;
+                case OBJ_FUNC: {
+                    LoxFunction * func = VAL_AS_FUNC(value);
+                    if(func->type == FUNC_SCRIPT)
+                        fputs("<script fn>", stdout);
+                    else
+                        printf("<fn %s>", func->name->chars);
+                } break;
+
+                default: UNREACHABLE();
+            } break;
+        default: UNREACHABLE();
     }
 }
 
@@ -76,4 +87,18 @@ bool lox_str_eq(const LoxString * s1, const LoxString * s2) {
 void lox_obj_destroy(LoxObject * obj) {
     obj->next = NULL;
     mem_dealloc(obj);
+}
+
+LoxFunction * lox_func_create(const LoxString * name, LoxFuncType type) {
+    LoxFunction * func = mem_alloc(sizeof(LoxFunction));
+
+    func->obj.type = OBJ_FUNC;
+    func->obj.next = NULL;
+
+    func->type     = type;
+    func->name     = name;
+    func->arity    = 0;
+
+    chunk_init(&func->chunk);
+    return func;
 }

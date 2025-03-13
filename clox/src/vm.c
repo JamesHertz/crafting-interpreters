@@ -1,6 +1,6 @@
 #include "vm.h"
 #include "compiler.h"
-#include "program.h"
+#include "chunk.h"
 #include "hash-map.h"
 #include "memory.h"
 #include "debug.h"
@@ -12,30 +12,34 @@
 #include <stdarg.h>
 #include <string.h>
 
-
-#define MAX_STACK_SIZE MAX_LOCALS
+#define MAX_STACK_SIZE (MAX_LOCALS * MAX_STACK_FRAMES)
 
 typedef struct {
-    LoxProgram program;    
+    LoxFunction * func;
+    Instruction * ip;
+    LoxValue * locals;
+} LoxCallFrame;
 
+typedef struct {
     struct {
         LoxValue values[MAX_STACK_SIZE];
         size_t length;
     } stack;
 
+    LoxCallFrame frames[MAX_STACK_FRAMES];
+    size_t frames_count;
+
     HashMap strings;
     HashMap globals;
-    Instruction * ip;
     LoxObject * objects;
 } LoxVM;
 
 static void vm_init(LoxVM * vm){
-    prog_init(&vm->program);
     map_init(&vm->strings);
     map_init(&vm->globals);
-    vm->ip           = NULL;
     vm->objects      = NULL;
     vm->stack.length = 0;
+    vm->frames_count = 0;
 } 
 
 static void vm_free_objects(LoxVM * vm){
@@ -49,10 +53,8 @@ static void vm_free_objects(LoxVM * vm){
 
 static void vm_destroy(LoxVM * vm){
     vm_free_objects(vm);
-    prog_destroy(&vm->program);
     map_destroy(&vm->strings);
     map_destroy(&vm->globals);
-    vm->ip = NULL;
     vm->stack.length = 0;
 }
 
@@ -82,8 +84,13 @@ static inline  LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
     return vm->stack.values[idx];
 }
 
+static LoxCallFrame * vm_current_frame(LoxVM * vm) {
+    ASSERT(vm->frames_count > 0);
+    return &vm->frames[vm->frames_count - 1];
+}
+
 static inline LoxValue vm_get_constant(LoxVM * vm, uint8_t idx){
-    return prog_get_constant(&vm->program, idx);
+    return chunk_get_constant(&vm_current_frame(vm)->func->chunk, idx);
 }
 
 static void vm_register_object(LoxVM * vm, LoxObject * obj){
@@ -92,6 +99,8 @@ static void vm_register_object(LoxVM * vm, LoxObject * obj){
     vm->objects = obj;
 }
 
+
+static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) __attribute__((format (printf, 2, 3)));
 static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     va_list list;
     va_start(list, format);
@@ -99,7 +108,7 @@ static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     vfprintf(stderr, format, list);
     va_end(list);
 
-    Instruction instr = vm->ip[-1];
+    Instruction instr = vm_current_frame(vm)->ip[-1];
     fprintf(stderr, "\n[line %u] in script\n", instr.line);
 }
 
@@ -134,14 +143,30 @@ static bool is_falsely(LoxValue v) {
     return v.type == VAL_NIL || (v.type == VAL_BOOL && !v.as.boolean);
 }
 
+static LoxCallFrame * vm_frames_push(LoxVM * vm, LoxFunction * func, uint8_t args_nr) {
+    ASSERTF(vm->frames_count < MAX_STACK_FRAMES, "call frame overflow");
+
+    LoxCallFrame * frame = &vm->frames[vm->frames_count++];
+    frame->func    = func;
+    frame->ip      = func->chunk.code.values;
+    frame->locals  = &vm->stack.values[vm->stack.length - (1 + args_nr)];
+    return frame;
+}
+
+static LoxCallFrame * vm_frames_pop(LoxVM * vm) {
+    ASSERT(vm->frames_count > 0);
+    vm->frames_count--;
+    return vm->frames_count == 0 ? NULL : &vm->frames[vm->frames_count - 1];
+}
 
 // TODO:
 //  - [x] Make vm.stack be a static array c:
-//  - [ ] About LoxProgram
-//      - [ ] change its name to LoxChunk of something similar
+//  - [x] About LoxChunk
+//      - [x] change its name to LoxChunk of something similar
 //      - [ ] change the code struct to be just an bytearray and have another struct called metadata with other things
 //  - [x] Add 'utils.c' and take some things from utils.h and and put them into actual functions
-static LoxInterpretResult vm_run(LoxVM * vm){
+//  - [ ] Add support for anonymous functions and native functions
+static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
 #define BINARY(op, value_constructor) do {                                                 \
         if(!VAL_IS_NUMBER(vm_stack_peek(vm, 0)) || !VAL_IS_NUMBER(vm_stack_peek(vm, 1))) { \
             vm_report_runtime_error(vm, "operands should both be numbers");                \
@@ -152,11 +177,13 @@ static LoxInterpretResult vm_run(LoxVM * vm){
         vm_stack_push(vm, value_constructor(a op b));                                      \
     } while(0)
 
-#define READ_BYTE()  (*vm->ip++).op_code
-#define READ_SHORT() (vm->ip += 2, (uint16_t) vm->ip[-1].op_code << 8 | vm->ip[-2].op_code)
+#define READ_BYTE()  (*frame->ip++).op_code
+#define READ_SHORT() (frame->ip += 2, (uint16_t) frame->ip[-1].op_code << 8 | frame->ip[-2].op_code)
 #define READ_STRING() VAL_AS_STRING(vm_get_constant(vm, READ_BYTE()))
 
-    vm->ip = vm->program.code.values;
+    ASSERT(vm->frames_count == 0);
+    vm_stack_push(vm, OBJ_VAL(script));
+    LoxCallFrame * frame = vm_frames_push(vm, script, 0);
     for(;;){
 
 #ifdef DEBUG_TRACE_EXECUTION
@@ -173,15 +200,16 @@ static LoxInterpretResult vm_run(LoxVM * vm){
             }
             putchar('\n');
         }
-        prog_instr_debug(&vm->program, (size_t) (vm->ip - vm->program.code.values));
+        chunk_instr_debug(&frame->func->chunk, (size_t) (frame->ip - frame->func->chunk.code.values));
 #endif
+
 
         OpCode instr = READ_BYTE();
         switch (instr) {
             case OP_POP   : vm_stack_pop(vm); break;
             case OP_CONST : {
                 uint8_t data_idx = READ_BYTE();
-                LoxValue data = prog_get_constant(&vm->program, data_idx);
+                LoxValue data = vm_get_constant(vm, data_idx);
                 vm_stack_push(vm, data);
             } break;
 
@@ -250,7 +278,6 @@ static LoxInterpretResult vm_run(LoxVM * vm){
             case OP_FALSE : vm_stack_push(vm, BOOL_VAL(false)); break;
             case OP_NIL   : vm_stack_push(vm, NIL_VAL); break;
 
-
             case OP_PRINT : 
                 value_print(vm_stack_pop(vm)); 
                 putchar('\n');
@@ -282,34 +309,64 @@ static LoxInterpretResult vm_run(LoxVM * vm){
                 vm_stack_push(vm, *value);
             } break;
 
-            case OP_GET_LOCAL: vm_stack_push(vm, vm_stack_get(vm, READ_BYTE())); break;
-            case OP_SET_LOCAL: vm_stack_set(vm, READ_BYTE(), vm_stack_peek(vm, 0)); break;
+            case OP_GET_LOCAL: vm_stack_push(vm, frame->locals[READ_BYTE()]);        break;
+            case OP_SET_LOCAL: frame->locals[READ_BYTE()] = vm_stack_peek(vm, 0); break;
 
             case OP_IF_FALSE : {
                 uint16_t offset = READ_SHORT();
                 if(is_falsely(vm_stack_peek(vm, 0))) 
-                    vm->ip += offset;
+                    frame->ip += offset;
             } break;
 
             case OP_JUMP : {
                 uint16_t offset = READ_SHORT();
-                vm->ip += offset;
+                frame->ip += offset;
             } break;
 
             case OP_LOOP : {
                 uint16_t offset = READ_SHORT();
-                vm->ip -= offset;
+                frame->ip -= offset;
             } break;
 
-            case OP_RETURN:
-                ASSERT(vm->stack.length == 0);
-                return INTERPRET_OK;
+            case OP_CALL : {
+                uint8_t args_nr = READ_BYTE();
+                LoxValue value = vm_stack_peek(vm, args_nr);
 
+                if(!VAL_IS_FUNC(value)) {
+                    vm_report_runtime_error(vm, "can only call functions");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                LoxFunction * func = VAL_AS_FUNC(value);
+                if(func->arity != args_nr) {
+                    vm_report_runtime_error(
+                        vm, "function '%s' expects %u arguments but %u was provided", 
+                        func->name->chars, (unsigned) func->arity, (unsigned) args_nr
+                    );
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                frame = vm_frames_push(vm, func, args_nr);
+            } break;
+
+            case OP_RETURN: {
+                LoxCallFrame * old = frame;
+                frame = vm_frames_pop(vm);
+                if(frame == NULL) {
+                    ASSERT(vm->stack.length == 0);
+                    return INTERPRET_OK;
+                }
+
+                LoxValue value   = vm_stack_pop(vm);
+                vm->stack.length = old->locals - vm->stack.values;
+                vm_stack_push(vm, value);
+            } break;
             default:
                 UNREACHABLE();
         }
     }
 
+    ASSERT(vm->frames_count == 0);
 #undef BINARY
 #undef READ_BYTE
 #undef READ_STRING
@@ -318,15 +375,8 @@ static LoxInterpretResult vm_run(LoxVM * vm){
 LoxInterpretResult interpret(const char * source){
     LoxVM vm;
     vm_init(&vm);
-
-    LoxInterpretResult res;
-    if(!compile(source, &vm.program, &vm.strings)) {
-       res = INTERPRET_COMPILE_ERROR;
-    } else {
-        /*prog_debug(&vm.program, "while loop thing c:");*/
-        res = vm_run(&vm);
-    }
-
+    LoxFunction * script = compile(source, &vm.strings);
+    LoxInterpretResult res = script == NULL ? INTERPRET_COMPILE_ERROR : vm_run(&vm, script);
     vm_destroy(&vm);
     return res;
 }

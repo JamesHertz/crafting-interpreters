@@ -1,17 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "program.h"
+#include "chunk.h"
 #include "darray.h"
 #include "memory.h"
 #include "utils.h"
 
-void prog_init(LoxProgram * p){
+void chunk_init(LoxChunk * p){
     da_init(&p->code);
     da_init(&p->constants);
 }
 
-static void free_objects(LoxProgram * p) {
+static void free_objects(LoxChunk * p) {
     for(size_t i = 0; i < p->constants.length; i++) {
         LoxValue val = p->constants.values[i];
         if(VAL_IS_STRING(val)) {
@@ -28,22 +28,22 @@ static void free_objects(LoxProgram * p) {
     }
 }
 
-void prog_destroy(LoxProgram * p){
+void chunk_destroy(LoxChunk * p){
     free_objects(p);
     da_destroy(&p->code);
     da_destroy(&p->constants);
 }
 
-LoxValue prog_get_constant(const LoxProgram * p, size_t idx){
+LoxValue chunk_get_constant(const LoxChunk * p, size_t idx){
     return da_get(&p->constants, idx);
 }
 
-size_t prog_add_constant(LoxProgram * p, LoxValue value){
+size_t chunk_add_constant(LoxChunk * p, LoxValue value){
     da_push(&p->constants, value);
     return p->constants.length - 1;
 }
 
-void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
+void chunk_add_instr(LoxChunk * p, uint8_t op_code, uint32_t line){
     Instruction tmp = {
         .op_code = op_code,
         .line    = line
@@ -51,14 +51,13 @@ void prog_add_instr(LoxProgram * p, uint8_t op_code, uint32_t line){
     da_push(&p->code, tmp);
 }
 
-
-static size_t print_byte_instr(const char * name, const LoxProgram * p, size_t offset){
+static size_t print_byte_instr(const char * name, const LoxChunk * p, size_t offset){
     Instruction constant = da_get(&p->code, offset + 1);
     printf("%-16s %4d\n", name, constant.op_code);
     return offset + 2;
 }
 
-static size_t print_constant_instr(const char * name, const LoxProgram * p, size_t offset){
+static size_t print_constant_instr(const char * name, const LoxChunk * p, size_t offset){
     Instruction constant = da_get(&p->code, offset + 1);
     printf("%-16s %4d ", name, constant.op_code);
 
@@ -74,7 +73,7 @@ static size_t print_constant_instr(const char * name, const LoxProgram * p, size
     return offset + 2;
 }
 
-static size_t print_jump_instr(const char * name, const LoxProgram * p, size_t offset, int sign) {
+static size_t print_jump_instr(const char * name, const LoxChunk * p, size_t offset, int sign) {
     size_t jump_length = (size_t) da_get(&p->code, offset + 2).op_code << 8 | da_get(&p->code, offset + 1).op_code;
     size_t jump_target = offset + 3 + jump_length * sign;
     printf("%-16s %4zu (%04zu)", name, jump_length, jump_target);
@@ -82,7 +81,7 @@ static size_t print_jump_instr(const char * name, const LoxProgram * p, size_t o
     return offset + 3;
 }
 
-size_t prog_instr_debug(const LoxProgram * p, size_t offset){
+size_t chunk_instr_debug(const LoxChunk * p, size_t offset){
 #define SIMPLE_INSTR_CASE(opcode)       case opcode: puts(#opcode); break
 #define CONST_INSTR_CASE(opcode)        case opcode: return print_constant_instr(#opcode, p, offset)
 #define BYTE_INSTR_CASE(opcode)         case opcode: return print_byte_instr(#opcode, p, offset)
@@ -105,6 +104,7 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
 
         BYTE_INSTR_CASE(OP_SET_LOCAL);
         BYTE_INSTR_CASE(OP_GET_LOCAL);
+        BYTE_INSTR_CASE(OP_CALL);
 
         SIMPLE_INSTR_CASE(OP_POP);
         SIMPLE_INSTR_CASE(OP_PRINT);
@@ -118,6 +118,7 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
         SIMPLE_INSTR_CASE(OP_EQ);
         SIMPLE_INSTR_CASE(OP_LESS);
         SIMPLE_INSTR_CASE(OP_GREATER);
+
         
         // boolean
         SIMPLE_INSTR_CASE(OP_NOT);
@@ -130,19 +131,21 @@ size_t prog_instr_debug(const LoxProgram * p, size_t offset){
         JUMP_INSTR_CASE(OP_JUMP, 1);
         JUMP_INSTR_CASE(OP_IF_FALSE, 1);
         JUMP_INSTR_CASE(OP_LOOP, -1);
-        default:
-            printf("Unknown opcode %d\n", instr.op_code);
+
+        default: UNREACHABLE();
     }
     
     return offset + 1;
 
 #undef SIMPLE_INSTR_CASE
 #undef CONST_INSTR_CASE
+#undef BYTE_INSTR_CASE
+#undef JUMP_INSTR_CASE
 }
 
-void prog_debug(const LoxProgram * p, const char * title) {
+void chunk_debug(const LoxChunk * p, const char * title) {
     printf("=== %s ===\n", title);
     for(size_t offset = 0; offset < p->code.length;)
-        offset = prog_instr_debug(p, offset);
+        offset = chunk_instr_debug(p, offset);
 }
 

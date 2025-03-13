@@ -48,6 +48,8 @@ typedef enum {
     OP_IF_FALSE,
     OP_JUMP,
     OP_LOOP,
+
+    OP_CALL,
 } OpCode;
 
 // WARN: please don't alter the order <values>, <length>, <size> of the inner structs, this is crucial!
@@ -59,15 +61,15 @@ typedef struct {
 typedef struct {
     DaArray(Instruction) code;
     DaArray(LoxValue) constants;
-} LoxProgram;
+} LoxChunk;
 
-void prog_init(LoxProgram * p);
-size_t prog_add_constant(LoxProgram * p, LoxValue value);
-LoxValue prog_get_constant(const LoxProgram * p, size_t idx);
-void prog_add_instr(LoxProgram * p, uint8_t value, uint32_t line);
-void prog_destroy(LoxProgram * p);
+void chunk_init(LoxChunk * c);
+size_t chunk_add_constant(LoxChunk * c, LoxValue value);
+LoxValue chunk_get_constant(const LoxChunk * c, size_t idx);
+void chunk_add_instr(LoxChunk * c, uint8_t value, uint32_t line);
+void chunk_destroy(LoxChunk * c);
 
-void prog_debug(const LoxProgram * p, const char * title);
-size_t prog_instr_debug(const LoxProgram * p, size_t offset);
+void chunk_debug(const LoxChunk * c, const char * title);
+size_t chunk_instr_debug(const LoxChunk * c, size_t offset);
 
 #endif

@@ -1,5 +1,5 @@
 #include "compiler.h"
-#include "program.h"
+#include "chunk.h"
 #include "scanner.h"
 #include "utils.h"
 
@@ -18,8 +18,9 @@ typedef struct {
 
 typedef struct {
     LoxScanner in;
-    LoxProgram * out_prog;
     HashMap * strings;
+
+    LoxFunction * script;
 
     Token previous;
     Token current;
@@ -29,10 +30,11 @@ typedef struct {
     bool in_panic_mode;
     bool can_assign;
 
-    LocalVar locals[MAX_LOCALS];
+    LocalVar locals[MAX_LOCALS * MAX_STACK_FRAMES];
     uint32_t localsCount;
     uint32_t currentScope;
-} LoxParser;
+    uint32_t funcLocalsStart;
+} LoxSPCompiler; // stands for LoxSinglePassCompiler
 
 typedef enum {
   PREC_NONE,
@@ -48,7 +50,7 @@ typedef enum {
   PREC_PRIMARY
 } ExprPrecedence;
 
-typedef void (*ParserFunc)(LoxParser *);
+typedef void (*ParserFunc)(LoxSPCompiler *);
 
 typedef struct {
     ParserFunc   prefix;
@@ -57,28 +59,32 @@ typedef struct {
 } LoxParserRule;
 
 static LoxParserRule * get_parse_rule(TokenType tt);
-static void psr_parse_expression(LoxParser * psr);
-static void psr_parse_declaration(LoxParser * psr);
+static void cpl_compile_expression(LoxSPCompiler * cpl);
+static void cpl_compile_declaration(LoxSPCompiler * cpl);
 
-static void psr_init(LoxParser * psr, const char * source, LoxProgram * out_prog, HashMap * strings) {
-    sc_init(&psr->in, source);
-    psr->out_prog = out_prog;
-    psr->strings  = strings;
-    psr->previous = psr->current = (Token) {0};
+static void cpl_init(LoxSPCompiler * cpl, const char * source, HashMap * strings) {
+    sc_init(&cpl->in, source);
+    cpl->strings  = strings;
+    cpl->previous = cpl->current = (Token) {0};
 
-    psr->error_found   = false;
-    psr->in_panic_mode = false;
-    psr->can_assign    = false;
+    cpl->error_found   = false;
+    cpl->in_panic_mode = false;
+    cpl->can_assign    = false;
 
     // locals things
-    psr->localsCount  = 0;
-    psr->currentScope = 0;
-    // psr->locals = ...;
+    cpl->localsCount     = 0;
+    cpl->currentScope    = 0;
+    cpl->funcLocalsStart = 0;
+    cpl->script          = lox_func_create(NULL, FUNC_SCRIPT);
+}
+
+static inline LoxChunk * cpl_chunk(LoxSPCompiler * cpl) {
+    return &cpl->script->chunk;
 }
 
 // helper functions
-static void psr_error_at(LoxParser * psr, Token * pos, const char * msg) {
-    if(psr->in_panic_mode) return;
+static void cpl_error_at(LoxSPCompiler * cpl, Token * pos, const char * msg) {
+    if(cpl->in_panic_mode) return;
 
     fprintf(stderr, "[line %d] Error", pos->line);
     if(pos->type == TOKEN_EOF)
@@ -87,104 +93,106 @@ static void psr_error_at(LoxParser * psr, Token * pos, const char * msg) {
         fprintf(stderr, " at '%.*s'", (int) pos->length, pos->start); 
 
     fprintf(stderr, ": %s\n", msg);
-    psr->in_panic_mode = true;
-    psr->error_found   = true;
+    cpl->in_panic_mode = true;
+    cpl->error_found   = true;
 }
 
-static void psr_emit_byte(LoxParser * psr, uint8_t byte) {
-    prog_add_instr(psr->out_prog, byte, psr->previous.line);
+static void cpl_emit_byte(LoxSPCompiler * cpl, uint8_t byte) {
+    chunk_add_instr(cpl_chunk(cpl), byte, cpl->previous.line);
 }
 
-static void psr_emit_bytes(LoxParser * psr, uint8_t byte1, uint8_t byte2) {
-    psr_emit_byte(psr, byte1);
-    psr_emit_byte(psr, byte2);
+static void cpl_emit_bytes(LoxSPCompiler * cpl, uint8_t byte1, uint8_t byte2) {
+    cpl_emit_byte(cpl, byte1);
+    cpl_emit_byte(cpl, byte2);
 }
 
-static uint8_t psr_add_constant(LoxParser * psr, LoxValue constant) {
-    size_t constant_idx = prog_add_constant(psr->out_prog, constant);
-    if(constant_idx > UINT16_MAX) {
-        psr_error_at(psr, &psr->previous, "too many constants for current chunk (?)");
+static uint8_t cpl_add_constant(LoxSPCompiler * cpl, LoxValue constant) {
+    size_t constant_idx = chunk_add_constant(cpl_chunk(cpl), constant);
+    if(constant_idx > UINT8_MAX) {
+        cpl_error_at(cpl, &cpl->previous, "too many constants for current chunk (?)");
         constant_idx = 0;
     }
-
     return constant_idx;
 }
 
-static uint8_t psr_add_str_constant(LoxParser * psr, const char * chars, size_t length) {
+static const LoxString * cpl_intern_str(LoxSPCompiler * cpl, const char * chars, size_t length) {
     uint32_t hash = str_hash(chars, length);
     const LoxString * str;
-    if((str = map_find_str(psr->strings, chars, length, hash)) == NULL){
+    if((str = map_find_str(cpl->strings, chars, length, hash)) == NULL){
         str = lox_str_copy(chars, length, hash);
-        map_set(psr->strings, str, BOOL_VAL(true));
+        map_set(cpl->strings, str, BOOL_VAL(true));
     }
-    return psr_add_constant(psr, OBJ_VAL(str));
+    return str;
 }
 
-static void psr_emit_constant(LoxParser * psr, LoxValue constant) {
-    uint8_t constant_idx = psr_add_constant(psr, constant);
-    psr_emit_bytes(psr, OP_CONST, constant_idx);
+static inline uint8_t cpl_add_str_constant(LoxSPCompiler * cpl, const char * chars, size_t length) {
+    return cpl_add_constant(cpl, OBJ_VAL(cpl_intern_str(cpl, chars, length)));
 }
 
+static void cpl_emit_constant(LoxSPCompiler * cpl, LoxValue constant) {
+    uint8_t constant_idx = cpl_add_constant(cpl, constant);
+    cpl_emit_bytes(cpl, OP_CONST, constant_idx);
+}
 
 // parsing related helping procedures
-static void psr_advance(LoxParser * psr) {
-    psr->previous = psr->current;
+static void cpl_advance(LoxSPCompiler * cpl) {
+    cpl->previous = cpl->current;
     for(;;) {
-        psr->current = sc_next_token(&psr->in);
-        if(psr->current.type != TOKEN_ERROR)
+        cpl->current = sc_next_token(&cpl->in);
+        if(cpl->current.type != TOKEN_ERROR)
             break;
-        Token * curr = &psr->current;
-        psr_error_at(psr, curr, curr->start);
+        Token * curr = &cpl->current;
+        cpl_error_at(cpl, curr, curr->start);
     }
 }
 
-static inline bool psr_check(LoxParser * psr, TokenType tt) {
-    return psr->current.type == tt;
+static inline bool cpl_check(LoxSPCompiler * cpl, TokenType tt) {
+    return cpl->current.type == tt;
 }
 
-static bool psr_match(LoxParser * psr, TokenType tt) {
+static bool cpl_match(LoxSPCompiler * cpl, TokenType tt) {
     bool result;
-    if((result = psr_check(psr, tt))) 
-        psr_advance(psr);
+    if((result = cpl_check(cpl, tt))) 
+        cpl_advance(cpl);
     return result;
 }
 
-static void psr_consume(LoxParser * psr, TokenType tt, const char * msg) {
-    if(!psr_match(psr, tt))
-        psr_error_at(psr, &psr->current, msg);
+static void cpl_consume(LoxSPCompiler * cpl, TokenType tt, const char * msg) {
+    if(!cpl_match(cpl, tt))
+        cpl_error_at(cpl, &cpl->current, msg);
 }
 
-static inline void psr_consume_semicolon(LoxParser * psr) {
-    psr_consume(psr, TOKEN_SEMICOLON, "expected ';' at the end of the statement");
+static inline void cpl_consume_semicolon(LoxSPCompiler * cpl) {
+    cpl_consume(cpl, TOKEN_SEMICOLON, "expected ';' at the end of the statement");
 }
 
-static void psr_parse_precedence(LoxParser * psr, ExprPrecedence prec) {
-    psr_advance(psr);
-    LoxParserRule * rule = get_parse_rule(psr->previous.type);
+static void cpl_parse_precedence(LoxSPCompiler * cpl, ExprPrecedence prec) {
+    cpl_advance(cpl);
+    LoxParserRule * rule = get_parse_rule(cpl->previous.type);
     if(rule->prefix == NULL) {
-        psr_error_at(psr, &psr->previous, "expected expression");
+        cpl_error_at(cpl, &cpl->previous, "expected expression");
         return;
     }
 
-    psr->can_assign = prec <= PREC_ASSIGNMENT;
-    rule->prefix(psr);
+    cpl->can_assign = prec <= PREC_ASSIGNMENT;
+    rule->prefix(cpl);
 
-    while((rule = get_parse_rule(psr->current.type))->precedence >= prec) {
-        ASSERTF(rule->infix != NULL, "BUG: rule->infix is NULL (token = %s)", tt2str(psr->current.type));
-        psr_advance(psr);
-        rule->infix(psr);
+    while((rule = get_parse_rule(cpl->current.type))->precedence >= prec) {
+        ASSERTF(rule->infix != NULL, "BUG: rule->infix is NULL (token = %s)", tt2str(cpl->current.type));
+        cpl_advance(cpl);
+        rule->infix(cpl);
     }
 
-    if(!psr->can_assign && psr_match(psr, TOKEN_EQUAL)) {
-        psr_error_at(psr, &psr->previous, "invalid assignment target");
+    if(!cpl->can_assign && cpl_match(cpl, TOKEN_EQUAL)) {
+        cpl_error_at(cpl, &cpl->previous, "invalid assignment target");
     } 
 }
-static void psr_syncronize(LoxParser * psr) {
-    psr->in_panic_mode = false;
+static void cpl_syncronize(LoxSPCompiler * cpl) {
+    cpl->in_panic_mode = false;
 
-    while (psr->current.type != TOKEN_EOF) {
-        if (psr->previous.type == TOKEN_SEMICOLON) return;
-        switch (psr->current.type) {
+    while (cpl->current.type != TOKEN_EOF) {
+        if (cpl->previous.type == TOKEN_SEMICOLON) return;
+        switch (cpl->current.type) {
             case TOKEN_CLASS:
             case TOKEN_FUN:
             case TOKEN_VAR:
@@ -199,371 +207,456 @@ static void psr_syncronize(LoxParser * psr) {
                 ; // Do nothing.
         }
 
-        psr_advance(psr);
+        cpl_advance(cpl);
     }
 }
 
 // scope helping functions
 #define NO_LOCAL_VAR -1
 
-static inline bool psr_in_global_scope(LoxParser * psr) {
-    return psr->currentScope == 0;
+static inline bool cpl_in_global_scope(LoxSPCompiler * cpl) {
+    return cpl->currentScope == 0;
 }
 
-static inline void psr_begin_scope(LoxParser * psr) {
-    ASSERT(psr->currentScope < UINT32_MAX);
-    psr->currentScope++;
+static inline void cpl_begin_scope(LoxSPCompiler * cpl) {
+    ASSERT(cpl->currentScope < UINT32_MAX);
+    cpl->currentScope++;
 }
 
-static void psr_end_scope(LoxParser * psr) {
-    ASSERT(psr->currentScope > 0);
+static void cpl_end_scope(LoxSPCompiler * cpl, bool of_func) {
+    ASSERT(cpl->currentScope > 0);
 
     // FIXME: use a OP_POP_N instruction
     ssize_t i;
-    for(i = (ssize_t) psr->localsCount - 1; i >= 0 && psr->locals[i].scope == psr->currentScope; i--) {
-        psr_emit_byte(psr, OP_POP);
+    for(i = (ssize_t) cpl->localsCount - 1; i >= 0 && cpl->locals[i].scope == cpl->currentScope; i--) {
+        if(!of_func) cpl_emit_byte(cpl, OP_POP);
     }
 
-    psr->localsCount -= psr->localsCount - (i + 1);
-    psr->currentScope--;
+    cpl->localsCount -= cpl->localsCount - (i + 1);
+    cpl->currentScope--;
 }
 
-static ssize_t psr_find_local_var_in_scope(LoxParser * psr, Token * name, uint32_t scope) {
-    for(ssize_t i = (ssize_t) psr->localsCount - 1; i >= 0 && psr->locals[i].scope >= scope; i--) {
-        Token * current = &psr->locals[i].name;
+static uint32_t cpl_begin_func(LoxSPCompiler * cpl) {
+    if(cpl->script->type != FUNC_SCRIPT) 
+        cpl_begin_scope(cpl);
+
+    uint32_t localsStart = cpl->funcLocalsStart;
+    cpl->funcLocalsStart = cpl->localsCount; // reserving space for function itself
+
+    // reserving place for function
+    cpl->locals[cpl->localsCount++] = (LocalVar) {
+        .scope = cpl->currentScope,
+        .name = (Token) {
+            .start  = "",
+            .length = 0,
+            .line   = 0,
+            .type   = TOKEN_IDENTIFIER,
+        }
+    };
+    return localsStart;
+}
+
+static void cpl_end_func(LoxSPCompiler * cpl, uint32_t prevLocalsStart) {
+    if(cpl->script->type != FUNC_SCRIPT) 
+        cpl_end_scope(cpl, true);
+    cpl->funcLocalsStart = prevLocalsStart;
+}
+
+static ssize_t cpl_find_local_var_in_scope(LoxSPCompiler * cpl, Token * name, uint32_t scope) {
+    for(ssize_t i = (ssize_t) cpl->localsCount - 1; i >= 0 && cpl->locals[i].scope >= scope; i--) {
+        Token * current = &cpl->locals[i].name;
         if(current->length == name->length && memcmp(current->start, name->start, current->length) == 0)
-            return i;
+            return i - cpl->funcLocalsStart;
     }
     return NO_LOCAL_VAR;
 }
 
-static inline size_t psr_find_local_var(LoxParser * psr, Token * name) {
-    return psr_find_local_var_in_scope(psr, name, 0);
+static inline size_t cpl_find_local_var(LoxSPCompiler * cpl, Token * name) {
+    return cpl_find_local_var_in_scope(cpl, name, 0);
 }
 
-static void psr_alloc_local_var(LoxParser * psr, Token name) {
-    ASSERT(psr->localsCount < UINT8_MAX);
+static void cpl_alloc_local_var(LoxSPCompiler * cpl, Token name) {
+    ASSERT(cpl->localsCount < UINT8_MAX);
 
-    if(psr_find_local_var_in_scope(psr, &name, psr->currentScope) != NO_LOCAL_VAR) {
-        psr_error_at(psr, &name, "variable already defined");
-    } else if(psr->localsCount == UINT8_MAX) {
-        psr_error_at(psr, &name, "stack overflow (reached max limit of local variables)");
+    if(cpl_find_local_var_in_scope(cpl, &name, cpl->currentScope) != NO_LOCAL_VAR) {
+        cpl_error_at(cpl, &name, "variable already defined");
+    } else if(cpl->localsCount == UINT8_MAX) {
+        cpl_error_at(cpl, &name, "stack overflow (reached max limit of local variables)");
     } else {
-        LocalVar * new_var = &psr->locals[psr->localsCount++];
+        LocalVar * new_var = &cpl->locals[cpl->localsCount++];
         new_var->name  = name;
-        new_var->scope = psr->currentScope;
+        new_var->scope = cpl->currentScope;
     }
 }
 
-static inline size_t psr_current_offset(LoxParser * psr) {
-    return psr->out_prog->code.length;
+static inline size_t cpl_current_offset(LoxSPCompiler * cpl) {
+    return cpl_chunk(cpl)->code.length;
 }
 
-static void psr_write_jump_length(LoxParser * psr, size_t offset, size_t length) {
+static void cpl_write_jump_length(LoxSPCompiler * cpl, size_t offset, size_t length) {
     if(length > UINT16_MAX) {
-        psr_error_at(psr, &psr->previous, "jump length larger than 65535");
+        cpl_error_at(cpl, &cpl->previous, "jump length larger than 65535");
     } else {
-        da_get_ptr(&psr->out_prog->code, offset - 1)->op_code = length >> 8 & 0xFF;
-        da_get_ptr(&psr->out_prog->code, offset - 2)->op_code = length & 0xFF;
+        da_get_ptr(&cpl_chunk(cpl)->code, offset - 1)->op_code = length >> 8 & 0xFF;
+        da_get_ptr(&cpl_chunk(cpl)->code, offset - 2)->op_code = length & 0xFF;
     }
 }
 
-static size_t psr_emit_jump(LoxParser * psr, uint8_t jump_instr) {
-    psr_emit_byte(psr, jump_instr);
-    psr_emit_bytes(psr, 0, 0);
-    return psr->out_prog->code.length;
+static size_t cpl_emit_jump(LoxSPCompiler * cpl, uint8_t jump_instr) {
+    cpl_emit_byte(cpl, jump_instr);
+    cpl_emit_bytes(cpl, 0, 0);
+    return cpl_chunk(cpl)->code.length;
 }
 
-static void psr_emit_loop(LoxParser * psr, size_t target_instr_offset) {
-    psr_emit_jump(psr, OP_LOOP);
-    size_t length = psr->out_prog->code.length - target_instr_offset;
-    psr_write_jump_length(psr, psr->out_prog->code.length, length);
+static void cpl_emit_loop(LoxSPCompiler * cpl, size_t target_instr_offset) {
+    cpl_emit_jump(cpl, OP_LOOP);
+    size_t length = cpl_chunk(cpl)->code.length - target_instr_offset;
+    cpl_write_jump_length(cpl, cpl_chunk(cpl)->code.length, length);
 }
 
-static inline void psr_complete_jump(LoxParser * psr, size_t jump_op_offset) {
-    size_t length = psr->out_prog->code.length - jump_op_offset;
-    psr_write_jump_length(psr, jump_op_offset, length);
+static inline void cpl_complete_jump(LoxSPCompiler * cpl, size_t jump_op_offset) {
+    size_t length = cpl_chunk(cpl)->code.length - jump_op_offset;
+    cpl_write_jump_length(cpl, jump_op_offset, length);
 }
 
 // actually parsing stuffs
-static void psr_parse_string(LoxParser * psr) {
-    Token * token = &psr->previous;
+static void cpl_compile_string(LoxSPCompiler * cpl) {
+    Token * token = &cpl->previous;
     const char * chars = &token->start[1];
     size_t length = token->length - 2;
 
-    psr_emit_bytes(psr, OP_CONST, psr_add_str_constant(psr, chars, length));
+    cpl_emit_bytes(cpl, OP_CONST, cpl_add_str_constant(cpl, chars, length));
 }
 
-static void psr_parse_number(LoxParser * psr) {
-    double value = strtod(psr->previous.start, NULL);
-    psr_emit_constant(psr, NUMBER_VAL(value));
+static void cpl_compile_number(LoxSPCompiler * cpl) {
+    double value = strtod(cpl->previous.start, NULL);
+    cpl_emit_constant(cpl, NUMBER_VAL(value));
 }
 
-static void psr_parse_variable(LoxParser * psr) {
+static void cpl_compile_variable(LoxSPCompiler * cpl) {
     ssize_t idx;
     bool is_global = false;
 
-    Token * name = &psr->previous;
-    if(psr_in_global_scope(psr) || (idx = psr_find_local_var(psr, name)) == NO_LOCAL_VAR) {
-        idx = psr_add_str_constant(psr, name->start, name->length);
+    Token * name = &cpl->previous;
+    if(cpl_in_global_scope(cpl) || (idx = cpl_find_local_var(cpl, name)) == NO_LOCAL_VAR) {
+        idx = cpl_add_str_constant(cpl, name->start, name->length);
         is_global = true;
     }
 
     ASSERT(idx <= UINT8_MAX && idx >= 0);
-    if(psr->can_assign && psr_match(psr, TOKEN_EQUAL)) {
-        psr_parse_expression(psr);
-        psr_emit_bytes(psr, is_global ? OP_SET_GLOBAL : OP_SET_LOCAL, (uint8_t) idx);
+    if(cpl->can_assign && cpl_match(cpl, TOKEN_EQUAL)) {
+        cpl_compile_expression(cpl);
+        cpl_emit_bytes(cpl, is_global ? OP_SET_GLOBAL : OP_SET_LOCAL, (uint8_t) idx);
     } else {
-        psr_emit_bytes(psr, is_global ? OP_GET_GLOBAL : OP_GET_LOCAL, (uint8_t) idx);
+        cpl_emit_bytes(cpl, is_global ? OP_GET_GLOBAL : OP_GET_LOCAL, (uint8_t) idx);
     }
 }
 
-static void psr_parse_primary(LoxParser * psr) {
-    switch(psr->previous.type) {
-        case TOKEN_TRUE  : psr_emit_byte(psr, OP_TRUE); break;
-        case TOKEN_FALSE : psr_emit_byte(psr, OP_FALSE); break;
-        case TOKEN_NIL   : psr_emit_byte(psr, OP_NIL); break;
+static void cpl_compile_call(LoxSPCompiler * cpl) {
+    size_t args_nr = 0;
+
+    if(!cpl_match(cpl, TOKEN_RIGHT_PAREN)) {
+        do {
+            cpl_compile_expression(cpl);
+            args_nr++;
+        } while(cpl_match(cpl, TOKEN_COMMA));
+        cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after function arguments");
+    }
+
+    if(args_nr > MAX_ARGS) {
+        cpl_error_at(cpl, &cpl->previous, "exceed limited of function arguments (256)");
+    } else {
+        cpl_emit_bytes(cpl, OP_CALL, (uint8_t) args_nr);
+    }
+}
+
+static void cpl_compile_primary(LoxSPCompiler * cpl) {
+    switch(cpl->previous.type) {
+        case TOKEN_TRUE  : cpl_emit_byte(cpl, OP_TRUE); break;
+        case TOKEN_FALSE : cpl_emit_byte(cpl, OP_FALSE); break;
+        case TOKEN_NIL   : cpl_emit_byte(cpl, OP_NIL); break;
         default: UNREACHABLE();
     }
 }
 
-static void psr_parse_unary(LoxParser * psr) {
-    TokenType op = psr->previous.type;
-    psr_parse_precedence(psr, PREC_UNARY);
+static void cpl_compile_unary(LoxSPCompiler * cpl) {
+    TokenType op = cpl->previous.type;
+    cpl_parse_precedence(cpl, PREC_UNARY);
 
     switch(op) {
-        case TOKEN_MINUS: psr_emit_byte(psr, OP_NEG); break;
-        case TOKEN_BANG : psr_emit_byte(psr, OP_NOT); break;
+        case TOKEN_MINUS: cpl_emit_byte(cpl, OP_NEG); break;
+        case TOKEN_BANG : cpl_emit_byte(cpl, OP_NOT); break;
         default: UNREACHABLE();
     }
 }
 
-static void psr_parse_grouping(LoxParser * psr){
-    psr_parse_expression(psr);
-    psr_consume(psr, TOKEN_RIGHT_PAREN, "expected enclosing ')'");
+static void cpl_compile_grouping(LoxSPCompiler * cpl){
+    cpl_compile_expression(cpl);
+    cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected enclosing ')'");
 }
 
-static void psr_parse_binary(LoxParser * psr) {
-    TokenType op = psr->previous.type;
+static void cpl_compile_binary(LoxSPCompiler * cpl) {
+    TokenType op = cpl->previous.type;
     ExprPrecedence prec = get_parse_rule(op)->precedence;
 
     if(prec != PREC_AND && prec != PREC_OR)
-        psr_parse_precedence(psr, prec + 1);
+        cpl_parse_precedence(cpl, prec + 1);
 
     switch(op) {
         // arithmetic
-        case TOKEN_PLUS  : psr_emit_byte(psr, OP_ADD);  break;
-        case TOKEN_MINUS : psr_emit_byte(psr, OP_SUB);  break;
-        case TOKEN_STAR  : psr_emit_byte(psr, OP_MULT); break;
-        case TOKEN_SLASH : psr_emit_byte(psr, OP_DIV);  break;
+        case TOKEN_PLUS  : cpl_emit_byte(cpl, OP_ADD);  break;
+        case TOKEN_MINUS : cpl_emit_byte(cpl, OP_SUB);  break;
+        case TOKEN_STAR  : cpl_emit_byte(cpl, OP_MULT); break;
+        case TOKEN_SLASH : cpl_emit_byte(cpl, OP_DIV);  break;
 
         // and and or
         case TOKEN_AND   : {
-            size_t offset = psr_emit_jump(psr, OP_IF_FALSE);
-            psr_emit_byte(psr, OP_POP);
-            psr_parse_precedence(psr, prec + 1);
-            psr_complete_jump(psr, offset);
+            size_t offset = cpl_emit_jump(cpl, OP_IF_FALSE);
+            cpl_emit_byte(cpl, OP_POP);
+            cpl_parse_precedence(cpl, prec + 1);
+            cpl_complete_jump(cpl, offset);
         } break;
         case TOKEN_OR    : {
-            size_t false_offset = psr_emit_jump(psr, OP_IF_FALSE);
-            size_t true_offset  = psr_emit_jump(psr, OP_JUMP);
-            psr_complete_jump(psr, false_offset);
-            psr_emit_byte(psr, OP_POP);
-            psr_parse_precedence(psr, prec + 1);
-            psr_complete_jump(psr, true_offset);
+            size_t false_offset = cpl_emit_jump(cpl, OP_IF_FALSE);
+            size_t true_offset  = cpl_emit_jump(cpl, OP_JUMP);
+            cpl_complete_jump(cpl, false_offset);
+            cpl_emit_byte(cpl, OP_POP);
+            cpl_parse_precedence(cpl, prec + 1);
+            cpl_complete_jump(cpl, true_offset);
         } break;
 
         // comparison
-        case TOKEN_EQUAL_EQUAL   : psr_emit_byte(psr, OP_EQ);                       break;
-        case TOKEN_BANG_EQUAL    : psr_emit_bytes(psr, OP_EQ, OP_NOT);      break;
-        case TOKEN_GREATER       : psr_emit_byte(psr, OP_GREATER);                  break;
-        case TOKEN_LESS          : psr_emit_byte(psr, OP_LESS);                     break;
-        case TOKEN_GREATER_EQUAL : psr_emit_bytes(psr, OP_LESS, OP_NOT);    break;
-        case TOKEN_LESS_EQUAL    : psr_emit_bytes(psr, OP_GREATER, OP_NOT); break;
+        case TOKEN_EQUAL_EQUAL   : cpl_emit_byte(cpl, OP_EQ);                       break;
+        case TOKEN_BANG_EQUAL    : cpl_emit_bytes(cpl, OP_EQ, OP_NOT);      break;
+        case TOKEN_GREATER       : cpl_emit_byte(cpl, OP_GREATER);                  break;
+        case TOKEN_LESS          : cpl_emit_byte(cpl, OP_LESS);                     break;
+        case TOKEN_GREATER_EQUAL : cpl_emit_bytes(cpl, OP_LESS, OP_NOT);    break;
+        case TOKEN_LESS_EQUAL    : cpl_emit_bytes(cpl, OP_GREATER, OP_NOT); break;
 
         default: UNREACHABLE();
     }
 }
 
-static void psr_parse_expression(LoxParser * psr){
-    psr_parse_precedence(psr, PREC_ASSIGNMENT);
+static void cpl_compile_expression(LoxSPCompiler * cpl){
+    cpl_parse_precedence(cpl, PREC_ASSIGNMENT);
 }
 
-static void psr_parse_var_declaration(LoxParser * psr) {
-    psr_consume(psr, TOKEN_IDENTIFIER, "expected an identifier after 'var' keyword");
+static void cpl_define_var(LoxSPCompiler * cpl, Token name) {
+    if(cpl_in_global_scope(cpl)) {
+        uint8_t idx = cpl_add_str_constant(cpl, name.start, name.length);
+        cpl_emit_bytes(cpl, OP_DEFINE_GLOBAL, idx);
+    } else {
+        cpl_alloc_local_var(cpl, name);
+    }
+}
 
-    Token name = psr->previous;
-    if(psr_match(psr, TOKEN_EQUAL))
-        psr_parse_expression(psr);
+static void cpl_compile_var_declaration(LoxSPCompiler * cpl) {
+    cpl_consume(cpl, TOKEN_IDENTIFIER, "expected an identifier after 'var' keyword");
+
+    Token name = cpl->previous;
+    if(cpl_match(cpl, TOKEN_EQUAL))
+        cpl_compile_expression(cpl);
     else
-        psr_emit_byte(psr, OP_NIL);
+        cpl_emit_byte(cpl, OP_NIL);
 
-    if(psr_in_global_scope(psr)) {
-        uint8_t idx = psr_add_str_constant(psr, name.start, name.length);
-        psr_emit_bytes(psr, OP_DEFINE_GLOBAL, idx);
-    } else {
-        psr_alloc_local_var(psr, name);
-    }
-
+    cpl_define_var(cpl, name);
 }
 
-static void psr_parse_statement(LoxParser * psr) {
-    if(psr_match(psr, TOKEN_PRINT)) { // print statement
-        psr_parse_expression(psr);
-        psr_emit_byte(psr, OP_PRINT);
-        psr_consume_semicolon(psr);
-    } else if(psr_match(psr, TOKEN_LEFT_BRACE)) { // block statement
-        psr_begin_scope(psr);
-        while(!(psr_check(psr, TOKEN_RIGHT_BRACE) || psr_check(psr, TOKEN_EOF))){
-            psr_parse_declaration(psr);
-        }
-        psr_consume(psr, TOKEN_RIGHT_BRACE, "missing enclosing '}'");
-        psr_end_scope(psr);
-    } else if(psr_match(psr, TOKEN_IF)) { // if statement
-        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after if keyword");
-        psr_parse_expression(psr);
-        psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' after if expression");
-
-        size_t if_jump_offset = psr_emit_jump(psr, OP_IF_FALSE);
-        psr_emit_byte(psr, OP_POP);
-        psr_parse_statement(psr);
-
-        if(psr_match(psr, TOKEN_ELSE)) {
-            size_t else_jump_offset = psr_emit_jump(psr, OP_JUMP);
-            psr_complete_jump(psr, if_jump_offset);
-            psr_emit_byte(psr, OP_POP);
-            psr_parse_statement(psr);
-            psr_complete_jump(psr, else_jump_offset);
-        } else {
-            psr_complete_jump(psr, if_jump_offset);
-        }
-
-    } else if(psr_match(psr, TOKEN_FOR)) { // for statement
-        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after for keyword");
-
-        psr_begin_scope(psr);
-
-        if(!psr_match(psr, TOKEN_SEMICOLON)) {
-            if(psr_match(psr, TOKEN_VAR))
-                psr_parse_var_declaration(psr);
-            else {
-                psr_parse_expression(psr);
-                psr_emit_byte(psr, OP_POP);
+static void cpl_compile_statement(LoxSPCompiler * cpl) {
+    if(cpl_match(cpl, TOKEN_PRINT)) { // print statement
+        cpl_compile_expression(cpl);
+        cpl_emit_byte(cpl, OP_PRINT);
+        cpl_consume_semicolon(cpl);
+    } else if(cpl_match(cpl, TOKEN_LEFT_BRACE)) { // block statement
+        cpl_begin_scope(cpl);
+            while(!(cpl_check(cpl, TOKEN_RIGHT_BRACE) || cpl_check(cpl, TOKEN_EOF))){
+                cpl_compile_declaration(cpl);
             }
-            psr_consume(psr, TOKEN_SEMICOLON, "expected ';' after for loop initialization");
-        }
+            cpl_consume(cpl, TOKEN_RIGHT_BRACE, "missing enclosing '}'");
+        cpl_end_scope(cpl, false);
+    } else if(cpl_match(cpl, TOKEN_IF)) { // if statement
+        cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' after if keyword");
+        cpl_compile_expression(cpl);
+        cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after if expression");
 
-        size_t cond_offset = psr_current_offset(psr);
-        if(!psr_match(psr, TOKEN_SEMICOLON)) {
-            psr_parse_expression(psr);
-            psr_consume(psr, TOKEN_SEMICOLON, "expected ';' after for loop expression");
+        size_t if_jump_offset = cpl_emit_jump(cpl, OP_IF_FALSE);
+        cpl_emit_byte(cpl, OP_POP);
+        cpl_compile_statement(cpl);
+
+        if(cpl_match(cpl, TOKEN_ELSE)) {
+            size_t else_jump_offset = cpl_emit_jump(cpl, OP_JUMP);
+            cpl_complete_jump(cpl, if_jump_offset);
+            cpl_emit_byte(cpl, OP_POP);
+            cpl_compile_statement(cpl);
+            cpl_complete_jump(cpl, else_jump_offset);
         } else {
-            psr_emit_byte(psr, OP_TRUE);
+            size_t silly_jump = cpl_emit_jump(cpl, OP_JUMP);
+            cpl_complete_jump(cpl, if_jump_offset);
+            cpl_emit_byte(cpl, OP_POP);
+            cpl_complete_jump(cpl, silly_jump);
         }
 
-        size_t jump_to_end_offset  = psr_emit_jump(psr, OP_IF_FALSE);
-        psr_emit_byte(psr, OP_POP);
-        size_t jump_to_body_offset = psr_emit_jump(psr, OP_JUMP);
+    } else if(cpl_match(cpl, TOKEN_FOR)) { // for statement
+        cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' after for keyword");
 
-        size_t end_offset = psr_current_offset(psr);
-        if(!psr_match(psr, TOKEN_RIGHT_PAREN)) {
-            psr_parse_expression(psr);
-            psr_emit_byte(psr, OP_POP);
-            psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' before for loop body");
+        cpl_begin_scope(cpl);
+
+            if(!cpl_match(cpl, TOKEN_SEMICOLON)) {
+                if(cpl_match(cpl, TOKEN_VAR))
+                    cpl_compile_var_declaration(cpl);
+                else {
+                    cpl_compile_expression(cpl);
+                    cpl_emit_byte(cpl, OP_POP);
+                }
+                cpl_consume(cpl, TOKEN_SEMICOLON, "expected ';' after for loop initialization");
+            }
+
+            size_t cond_offset = cpl_current_offset(cpl);
+            if(!cpl_match(cpl, TOKEN_SEMICOLON)) {
+                cpl_compile_expression(cpl);
+                cpl_consume(cpl, TOKEN_SEMICOLON, "expected ';' after for loop expression");
+            } else {
+                cpl_emit_byte(cpl, OP_TRUE);
+            }
+
+            size_t jump_to_end_offset  = cpl_emit_jump(cpl, OP_IF_FALSE);
+            cpl_emit_byte(cpl, OP_POP);
+            size_t jump_to_body_offset = cpl_emit_jump(cpl, OP_JUMP);
+
+            size_t end_offset = cpl_current_offset(cpl);
+            if(!cpl_match(cpl, TOKEN_RIGHT_PAREN)) {
+                cpl_compile_expression(cpl);
+                cpl_emit_byte(cpl, OP_POP);
+                cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' before for loop body");
+            }
+            cpl_emit_loop(cpl, cond_offset);
+
+            cpl_complete_jump(cpl, jump_to_body_offset);
+            cpl_compile_statement(cpl);
+            cpl_emit_loop(cpl, end_offset);
+
+            cpl_complete_jump(cpl, jump_to_end_offset);
+            cpl_emit_byte(cpl, OP_POP); // for `for's condition`
+
+        cpl_end_scope(cpl, false);
+    } else if(cpl_match(cpl, TOKEN_WHILE)) { // while statement
+        size_t while_expr_offset = cpl_current_offset(cpl);
+
+        cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' after while keyword");
+        cpl_compile_expression(cpl);
+        cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after while expression");
+
+        size_t while_jump_offset = cpl_emit_jump(cpl, OP_IF_FALSE);
+        cpl_emit_byte(cpl, OP_POP);
+        cpl_compile_statement(cpl);
+        cpl_emit_loop(cpl, while_expr_offset);
+
+        cpl_complete_jump(cpl, while_jump_offset);
+        cpl_emit_byte(cpl, OP_POP);
+    } else if (cpl_match(cpl, TOKEN_RETURN)) {
+        if(cpl->script->type == FUNC_SCRIPT)
+            cpl_error_at(cpl, &cpl->previous, "cannot return from the top level");
+        else if(cpl_match(cpl, TOKEN_SEMICOLON))
+            cpl_emit_bytes(cpl, OP_NIL, OP_RETURN);
+        else {
+            cpl_compile_expression(cpl);
+            cpl_consume_semicolon(cpl);
         }
-        psr_emit_loop(psr, cond_offset);
-
-        psr_complete_jump(psr, jump_to_body_offset);
-        psr_parse_statement(psr);
-        psr_emit_loop(psr, end_offset);
-
-        psr_complete_jump(psr, jump_to_end_offset);
-        psr_emit_byte(psr, OP_POP); // for `for's condition`
-
-        psr_end_scope(psr);
-    } else if(psr_match(psr, TOKEN_WHILE)) { // while statement
-        size_t while_expr_offset = psr_current_offset(psr);
-
-        psr_consume(psr, TOKEN_LEFT_PAREN, "expected '(' after while keyword");
-        psr_parse_expression(psr);
-        psr_consume(psr, TOKEN_RIGHT_PAREN, "expected ')' after while expression");
-
-        size_t while_jump_offset = psr_emit_jump(psr, OP_IF_FALSE);
-        psr_emit_byte(psr, OP_POP);
-        psr_parse_statement(psr);
-        psr_emit_loop(psr, while_expr_offset);
-
-        psr_complete_jump(psr, while_jump_offset);
-        psr_emit_byte(psr, OP_POP);
     } else { // expression statement
-        psr_parse_expression(psr);
-        psr_emit_byte(psr, OP_POP);
-        psr_consume_semicolon(psr);
+        cpl_compile_expression(cpl);
+        cpl_emit_byte(cpl, OP_POP);
+        cpl_consume_semicolon(cpl);
     }
 }
 
-static void psr_parse_declaration(LoxParser * psr) {
-    if(psr_match(psr, TOKEN_VAR)) {
-        psr_parse_var_declaration(psr);
-        psr_consume_semicolon(psr);
+static void cpl_compile_declaration(LoxSPCompiler * cpl) {
+    if(cpl_match(cpl, TOKEN_VAR)) {
+        cpl_compile_var_declaration(cpl);
+        cpl_consume_semicolon(cpl);
+    } else if (cpl_match(cpl, TOKEN_FUN)) {
+        cpl_consume(cpl, TOKEN_IDENTIFIER, "expected an identifier after 'fun' keyword");
+
+        const LoxString * name = cpl_intern_str(cpl, cpl->previous.start, cpl->previous.length);
+        LoxFunction * func     = lox_func_create(name, FUNC_ORDINARY);
+        cpl_emit_bytes(cpl, OP_CONST, cpl_add_constant(cpl, OBJ_VAL(func)));
+        cpl_define_var(cpl, cpl->previous);
+
+        LoxFunction * backup   = cpl->script;
+        cpl->script = func;
+        uint32_t lastLocalsStart = cpl_begin_func(cpl);
+            cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' before function parameters");
+            if(!cpl_match(cpl, TOKEN_RIGHT_PAREN)) {
+                do {
+                    cpl_consume(cpl, TOKEN_IDENTIFIER, "expected indentifier for function arguments");
+                    cpl_alloc_local_var(cpl, cpl->previous);
+                    func->arity++;
+                } while(cpl_match(cpl, TOKEN_COMMA));
+                cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after function parameter(s)");
+            }
+            cpl_consume(cpl, TOKEN_LEFT_BRACE, "expected '{' before function body");
+            while(!(cpl_check(cpl, TOKEN_RIGHT_BRACE) || cpl_check(cpl, TOKEN_EOF))){
+                cpl_compile_declaration(cpl);
+            }
+            cpl_consume(cpl, TOKEN_RIGHT_BRACE, "expected '}' after function body");
+            cpl_emit_bytes(cpl, OP_NIL, OP_RETURN);
+        cpl_end_func(cpl, lastLocalsStart); // TODO: fix this
+        cpl->script = backup;
     } else {
-        psr_parse_statement(psr);
+        cpl_compile_statement(cpl);
     }
-
-    if(psr->in_panic_mode) psr_syncronize(psr);
+    if(cpl->in_panic_mode) cpl_syncronize(cpl);
 }
 
-static void psr_destroy(LoxParser * psr) {
-    sc_destroy(&psr->in);
+static void cpl_destroy(LoxSPCompiler * cpl) {
+    sc_destroy(&cpl->in);
 
-    psr->strings  = NULL;
-    psr->out_prog = NULL;
-    memset(&psr->previous, 0, sizeof(Token));
-    memset(&psr->current, 0, sizeof(Token));
+    cpl->strings  = NULL;
+    memset(&cpl->previous, 0, sizeof(Token));
+    memset(&cpl->current, 0, sizeof(Token));
 
-    psr->error_found   = false;
-    psr->in_panic_mode = false;
+    cpl->error_found   = false;
+    cpl->in_panic_mode = false;
 }
 
 static LoxParserRule rules[] = {
-    [TOKEN_LEFT_PAREN]    = { psr_parse_grouping, NULL, PREC_PRIMARY },
+    [TOKEN_LEFT_PAREN]    = { cpl_compile_grouping, cpl_compile_call, PREC_PRIMARY },
     [TOKEN_RIGHT_PAREN]   = { NULL, NULL, PREC_NONE },
     [TOKEN_LEFT_BRACE]    = { NULL, NULL, PREC_NONE },
     [TOKEN_RIGHT_BRACE]   = { NULL, NULL, PREC_NONE },
     [TOKEN_COMMA]         = { NULL, NULL, PREC_NONE },
     [TOKEN_DOT]           = { NULL, NULL, PREC_NONE },
-    [TOKEN_MINUS]         = { psr_parse_unary, psr_parse_binary, PREC_TERM },
-    [TOKEN_PLUS]          = { NULL, psr_parse_binary, PREC_TERM },
+    [TOKEN_MINUS]         = { cpl_compile_unary, cpl_compile_binary, PREC_TERM },
+    [TOKEN_PLUS]          = { NULL, cpl_compile_binary, PREC_TERM },
     [TOKEN_SEMICOLON]     = { NULL, NULL, PREC_NONE },
-    [TOKEN_SLASH]         = { NULL, psr_parse_binary, PREC_FACTOR },
-    [TOKEN_STAR]          = { NULL, psr_parse_binary, PREC_FACTOR },
+    [TOKEN_SLASH]         = { NULL, cpl_compile_binary, PREC_FACTOR },
+    [TOKEN_STAR]          = { NULL, cpl_compile_binary, PREC_FACTOR },
 
     // One or two character tokens.
-    [TOKEN_BANG]          = { psr_parse_unary, NULL, PREC_UNARY },
-    [TOKEN_BANG_EQUAL]    = { NULL, psr_parse_binary, PREC_EQUALITY   },
+    [TOKEN_BANG]          = { cpl_compile_unary, NULL, PREC_UNARY },
+    [TOKEN_BANG_EQUAL]    = { NULL, cpl_compile_binary, PREC_EQUALITY   },
     [TOKEN_EQUAL]         = { NULL, NULL, PREC_NONE },
-    [TOKEN_EQUAL_EQUAL]   = { NULL, psr_parse_binary, PREC_EQUALITY   },
-    [TOKEN_GREATER]       = { NULL, psr_parse_binary, PREC_COMPARISON },
-    [TOKEN_GREATER_EQUAL] = { NULL, psr_parse_binary, PREC_COMPARISON },
-    [TOKEN_LESS]          = { NULL, psr_parse_binary, PREC_COMPARISON },
-    [TOKEN_LESS_EQUAL]    = { NULL, psr_parse_binary, PREC_COMPARISON },
+    [TOKEN_EQUAL_EQUAL]   = { NULL, cpl_compile_binary, PREC_EQUALITY   },
+    [TOKEN_GREATER]       = { NULL, cpl_compile_binary, PREC_COMPARISON },
+    [TOKEN_GREATER_EQUAL] = { NULL, cpl_compile_binary, PREC_COMPARISON },
+    [TOKEN_LESS]          = { NULL, cpl_compile_binary, PREC_COMPARISON },
+    [TOKEN_LESS_EQUAL]    = { NULL, cpl_compile_binary, PREC_COMPARISON },
 
     // Literals.
-    [TOKEN_IDENTIFIER]    = { psr_parse_variable, NULL, PREC_NONE },
-    [TOKEN_STRING]        = { psr_parse_string,   NULL, PREC_NONE },
-    [TOKEN_NUMBER]        = { psr_parse_number,   NULL, PREC_NONE },
+    [TOKEN_IDENTIFIER]    = { cpl_compile_variable, NULL, PREC_NONE },
+    [TOKEN_STRING]        = { cpl_compile_string,   NULL, PREC_NONE },
+    [TOKEN_NUMBER]        = { cpl_compile_number,   NULL, PREC_NONE },
 
     // Keywords.
-    [TOKEN_NIL]           = { psr_parse_primary, NULL, PREC_NONE },
-    [TOKEN_TRUE]          = { psr_parse_primary, NULL, PREC_NONE },
-    [TOKEN_FALSE]         = { psr_parse_primary, NULL, PREC_NONE },
+    [TOKEN_NIL]           = { cpl_compile_primary, NULL, PREC_NONE },
+    [TOKEN_TRUE]          = { cpl_compile_primary, NULL, PREC_NONE },
+    [TOKEN_FALSE]         = { cpl_compile_primary, NULL, PREC_NONE },
 
-    [TOKEN_AND]           = { NULL, psr_parse_binary, PREC_AND  },
+    [TOKEN_AND]           = { NULL, cpl_compile_binary, PREC_AND  },
     [TOKEN_ELSE]          = { NULL, NULL, PREC_NONE },
     [TOKEN_FOR]           = { NULL, NULL, PREC_NONE },
     [TOKEN_FUN]           = { NULL, NULL, PREC_NONE },
     [TOKEN_IF]            = { NULL, NULL, PREC_NONE },
-    [TOKEN_OR]            = { NULL, psr_parse_binary, PREC_OR   },
+    [TOKEN_OR]            = { NULL, cpl_compile_binary, PREC_OR   },
     [TOKEN_PRINT]         = { NULL, NULL, PREC_NONE },
     [TOKEN_RETURN]        = { NULL, NULL, PREC_NONE },
     [TOKEN_SUPER]         = { NULL, NULL, PREC_NONE },
@@ -579,19 +672,27 @@ static LoxParserRule * get_parse_rule(TokenType tt){
     return &rules[tt];
 }
 
-static void psr_parse_program(LoxParser * psr) {
-    psr_advance(psr);
-    while(!psr_match(psr, TOKEN_EOF)){
-        psr_parse_declaration(psr);
-    }
-    psr_emit_byte(psr, OP_RETURN);
+static LoxFunction * cpl_compile(LoxSPCompiler * cpl) {
+    cpl_begin_func(cpl);
+        cpl_advance(cpl);
+        while(!cpl_match(cpl, TOKEN_EOF)){
+            cpl_compile_declaration(cpl);
+        }
+        cpl_emit_bytes(cpl, OP_POP, OP_RETURN);
+    cpl_end_func(cpl, 0);
+    return cpl->script;
 }
 
-bool compile(const char * source, LoxProgram * out_prog, HashMap * strings) {
-    LoxParser psr;
-    psr_init(&psr, source, out_prog, strings);
-    psr_parse_program(&psr);
-    bool no_error = !psr.error_found;
-    psr_destroy(&psr);
-    return no_error;
+LoxFunction * compile(const char * source, HashMap * strings) {
+    LoxSPCompiler cpl;
+    cpl_init(&cpl, source, strings);
+
+    LoxFunction * script = cpl_compile(&cpl);
+    if(cpl.error_found) {
+        lox_obj_destroy((LoxObject*) script);
+        script = NULL;
+    }
+
+    cpl_destroy(&cpl);
+    return script;
 }

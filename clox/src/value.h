@@ -20,7 +20,8 @@
 #define NIL_VAL          ((LoxValue) { .type = VAL_NIL,    .as.number  = 0 })
 
 typedef enum {
-    OBJ_STRING
+    OBJ_STRING,
+    OBJ_FUNC
 } LoxObjectType;
 
 typedef struct __lox_object__ {
@@ -54,13 +55,14 @@ typedef struct {
 
 void value_print(LoxValue value);
 bool value_eq(LoxValue v1, LoxValue v2);
+
 LoxString * lox_str_copy(const char * str, size_t length, uint32_t hash);
 LoxString * lox_str_take(const char * str, size_t length, uint32_t hash);
 bool lox_str_eq(const LoxString * s1, const LoxString * s2);
-
 void lox_obj_destroy(LoxObject * obj);
 
 static inline bool value_is_of_object_type(LoxValue value, LoxObjectType type) {
     return VAL_IS_OBJ(value) && value.as.object->type == type;
 }
+
 #endif 

@@ -2,9 +2,10 @@
 #define CLOX_COMPILER_H
 
 #include <stdbool.h>
-#include "program.h"
+#include "chunk.h"
+#include "function.h"
 #include "hash-map.h"
 
-bool compile(const char * source, LoxProgram * out_prog, HashMap * strings);
+LoxFunction * compile(const char * source, HashMap * strings);
 
 #endif 
