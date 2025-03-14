@@ -15,6 +15,10 @@ const PREC = {
 
 module.exports = grammar({
   name: "lox",
+  extras: $ => [
+    /\s/,
+    $.comment,
+  ],
   word: $ => $.identifier,
   rules: {
     source_file : $ => repeat($._declaration),
@@ -65,9 +69,10 @@ module.exports = grammar({
     _primary   : $ => prec(PREC.primary,
         choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false", $.call)
     ),
-    call       : $  => seq(field('function', $.identifier), "(", optional(seq($._expression, repeat(seq(',', $._expression)))) ,")"),
-    identifier :  _ => /[a-zA-Z_]+/,
-    number     :  _ => /[0-9]+(.[0-9]+)?/,
-    string     :  _ => /"[^\n"]*"/
+    call       : $ => seq(field('function', $.identifier), "(", optional(seq($._expression, repeat(seq(',', $._expression)))) ,")"),
+    identifier : _ => /[a-zA-Z_]+/,
+    number     : _ => /[0-9]+(.[0-9]+)?/,
+    string     : _ => /"[^\n"]*"/,
+    comment    : _ => /\/\/[^\n]*/,
   }
 });

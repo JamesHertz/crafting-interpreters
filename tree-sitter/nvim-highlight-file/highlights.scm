@@ -10,10 +10,10 @@
 "fun"    @keyword.function
 "print"  @function.builtin
 
-
 (identifier) @variable
 (number)     @number
 (string)     @string
+(comment)    @comment
 
 (function_arguments (identifier) @variable.parameter)
 (func_def fun_name: (identifier) @function)
