@@ -63,8 +63,9 @@ module.exports = grammar({
     ),
     unary      : $ => prec(PREC.unary, seq(choice('-', '!'), $._expression)),
     _primary   : $ => prec(PREC.primary,
-        choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false")
+        choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false", $.call)
     ),
+    call       : $  => seq(field('function', $.identifier), "(", optional(seq($._expression, repeat(seq(',', $._expression)))) ,")"),
     identifier :  _ => /[a-zA-Z_]+/,
     number     :  _ => /[0-9]+(.[0-9]+)?/,
     string     :  _ => /"[^\n"]*"/

@@ -17,3 +17,5 @@
 
 (function_arguments (identifier) @variable.parameter)
 (func_def fun_name: (identifier) @function)
+
+(call function: (_) @function.call)
