@@ -108,8 +108,16 @@ static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     vfprintf(stderr, format, list);
     va_end(list);
 
-    Instruction instr = vm_current_frame(vm)->ip[-1];
-    fprintf(stderr, "\n[line %u] in script\n", instr.line);
+    for(size_t i = vm->frames_count - 1; i >= 0; i--) {
+        LoxCallFrame * frame = &vm->frames[i];
+        Instruction instr = frame->ip[-1];
+
+        fprintf(stderr, "\n[line %u] in ", instr.line);
+        if(frame->func->type == FUNC_SCRIPT) 
+            fputs("script", stderr);
+        else 
+            fprintf(stderr, "%s()\n", frame->func->name->chars);
+    }
 }
 
 
@@ -177,8 +185,8 @@ static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
         vm_stack_push(vm, value_constructor(a op b));                                      \
     } while(0)
 
-#define READ_BYTE()  (*frame->ip++).op_code
-#define READ_SHORT() (frame->ip += 2, (uint16_t) frame->ip[-1].op_code << 8 | frame->ip[-2].op_code)
+#define READ_BYTE()   (*frame->ip++).op_code
+#define READ_SHORT()  (frame->ip += 2, (uint16_t) frame->ip[-1].op_code << 8 | frame->ip[-2].op_code)
 #define READ_STRING() VAL_AS_STRING(vm_get_constant(vm, READ_BYTE()))
 
     ASSERT(vm->frames_count == 0);
