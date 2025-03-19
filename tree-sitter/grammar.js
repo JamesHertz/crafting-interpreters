@@ -71,7 +71,7 @@ module.exports = grammar({
         choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false", "nil", $.call)
     ),
     call       : $ => seq(field('function', $.identifier), "(", optional(seq($._expression, repeat(seq(',', $._expression)))) ,")"),
-    identifier : _ => /[a-zA-Z_]+/,
+    identifier : _ => /[a-zA-Z_][a-zA-z_0-9]*/,
     number     : _ => /[0-9]+(.[0-9]+)?/,
     string     : _ => /"[^\n"]*"/,
     comment    : _ => /\/\/[^\n]*/,

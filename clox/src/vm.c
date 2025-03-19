@@ -126,7 +126,6 @@ static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     }
 }
 
-
 static const LoxString * vm_stingify_value(LoxVM * vm, LoxValue value){
     if(VAL_IS_STRING(value)) return VAL_AS_STRING(value);
 
@@ -354,7 +353,8 @@ static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
                 if(func->arity != args_nr) {
                     vm_report_runtime_error(
                         vm, "function '%s' expects %u arguments but %u was provided", 
-                        func->name->chars, (unsigned) func->arity, (unsigned) args_nr
+                        func->name ? func->name->chars : "<anonymous fn>", 
+                        (unsigned) func->arity, (unsigned) args_nr
                     );
                     return INTERPRET_RUNTIME_ERROR;
                 }

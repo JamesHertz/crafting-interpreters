@@ -1,0 +1,5 @@
+fun add_values(x, y, z) {
+    return x + y + z;
+}
+
+print add_values(1, 2);
