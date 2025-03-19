@@ -64,10 +64,11 @@ module.exports = grammar({
       prec(PREC.assignment,  seq(field('assign_target', $.identifier), '=', $._expression)),
       $.unary,
       $._primary,
+      seq('fun', '(', optional($.function_arguments), ')', $.block), // anonymous function
     ),
     unary      : $ => prec(PREC.unary, seq(choice('-', '!'), $._expression)),
     _primary   : $ => prec(PREC.primary,
-        choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false", $.call)
+        choice($.string, $.identifier, $.number, seq('(', $._expression, ')'), "true", "false", "nil", $.call)
     ),
     call       : $ => seq(field('function', $.identifier), "(", optional(seq($._expression, repeat(seq(',', $._expression)))) ,")"),
     identifier : _ => /[a-zA-Z_]+/,

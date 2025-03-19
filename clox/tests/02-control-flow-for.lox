@@ -1,0 +1,19 @@
+var x;
+for(x = 0; x < 10; x = x + 1) {
+    print x;
+}
+
+for(var i = 0; i < 10; i = i + 1) {
+    print i;
+}
+
+x = 0;
+for(; x < 2; x = x + 1) {
+    print x;
+}
+
+x = 0;
+for(; x < 2;) {
+    print x;
+    x = x + 1;
+}

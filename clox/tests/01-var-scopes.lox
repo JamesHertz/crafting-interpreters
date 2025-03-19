@@ -1,0 +1,10 @@
+var x = 10;
+print x;
+{
+    var y = "He has " + x + " years old";
+    print y;
+    {
+        var x = x + 10;
+        print x;
+    }
+}

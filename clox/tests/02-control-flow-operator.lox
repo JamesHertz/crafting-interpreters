@@ -1,0 +1,29 @@
+print true  and false;
+print false and true;
+print false and false;
+print true  and true;
+
+print true  or false;
+print false or true;
+print false or false;
+print true  or true;
+
+{
+    var x = true;
+
+    print false and (x = false);
+    print x;
+
+    print true and (x = false);
+    print x;
+}
+
+{
+    var x = false;
+
+    print true or (x = true);
+    print x;
+
+    print false or (x = true);
+    print x;
+}

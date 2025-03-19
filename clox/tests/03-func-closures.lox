@@ -1,0 +1,8 @@
+fun add(x) {
+    return fun(z) {
+        return x + z;
+    };
+}
+
+var addOne = add(1);
+print addOne(10);

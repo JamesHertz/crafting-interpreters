@@ -1,0 +1,6 @@
+fun do_nothing() {}
+fun get_zero() { return 0; }
+
+print do_nothing();
+print get_zero();
+

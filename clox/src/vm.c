@@ -108,15 +108,21 @@ static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     vfprintf(stderr, format, list);
     va_end(list);
 
-    for(size_t i = vm->frames_count - 1; i >= 0; i--) {
+    for(ssize_t i = vm->frames_count - 1; i >= 0; i--) {
         LoxCallFrame * frame = &vm->frames[i];
         Instruction instr = frame->ip[-1];
 
         fprintf(stderr, "\n[line %u] in ", instr.line);
-        if(frame->func->type == FUNC_SCRIPT) 
-            fputs("script", stderr);
-        else 
-            fprintf(stderr, "%s()\n", frame->func->name->chars);
+        switch(frame->func->type) {
+            case FUNC_SCRIPT   : fputs("script\n", stderr); break;
+            case FUNC_ORDINARY : 
+                fprintf(stderr, "%s()", frame->func->name->chars);
+                break;
+            case FUNC_ANONYMOUS: fprintf(stderr, "<%p>()", frame->func); break;
+            default:
+                UNREACHABLE();
+        }
+
     }
 }
 
@@ -210,7 +216,6 @@ static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
         }
         chunk_instr_debug(&frame->func->chunk, (size_t) (frame->ip - frame->func->chunk.code.values));
 #endif
-
 
         OpCode instr = READ_BYTE();
         switch (instr) {

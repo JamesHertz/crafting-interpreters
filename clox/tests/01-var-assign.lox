@@ -1,0 +1,16 @@
+var x;
+print x;
+
+x = 10;
+x = x * 2;
+
+print x;
+{
+    var y = x;
+    y = x * 2;
+    print y;
+
+    print 2 + (y = 10);
+}
+
+print 2 + (x = 0);

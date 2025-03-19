@@ -1,0 +1,14 @@
+print "Hello, world!";
+print "Hello, " + "world!";
+
+print "hello " + "number " + 10;
+print false + " hello";
+
+print "hello" == "hello";
+print true + "" == "true";
+
+print true == "false";
+print true != "false";
+
+print "hi" == "hello";
+print "hi" != "hello";

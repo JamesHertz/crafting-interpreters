@@ -560,6 +560,7 @@ static void cpl_compile_statement(LoxSPCompiler * cpl) {
             cpl_emit_bytes(cpl, OP_NIL, OP_RETURN);
         else {
             cpl_compile_expression(cpl);
+            cpl_emit_byte(cpl, OP_RETURN);
             cpl_consume_semicolon(cpl);
         }
     } else { // expression statement
@@ -569,38 +570,47 @@ static void cpl_compile_statement(LoxSPCompiler * cpl) {
     }
 }
 
+static void cpl_compile_function_body(LoxSPCompiler * cpl, const LoxString * func_name, LoxFuncType type) {
+    LoxFunction * func     = lox_func_create(func_name, type);
+    cpl_emit_bytes(cpl, OP_CONST, cpl_add_constant(cpl, OBJ_VAL(func)));
+
+    if(type == FUNC_ORDINARY) 
+        cpl_define_var(cpl, cpl->previous);
+
+    LoxFunction * backup   = cpl->script;
+    cpl->script = func;
+    uint32_t lastLocalsStart = cpl_begin_func(cpl);
+    cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' before function parameters");
+    if(!cpl_match(cpl, TOKEN_RIGHT_PAREN)) {
+        do {
+            cpl_consume(cpl, TOKEN_IDENTIFIER, "expected indentifier for function arguments");
+            cpl_alloc_local_var(cpl, cpl->previous);
+            func->arity++;
+        } while(cpl_match(cpl, TOKEN_COMMA));
+        cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after function parameter(s)");
+    }
+    cpl_consume(cpl, TOKEN_LEFT_BRACE, "expected '{' before function body");
+    while(!(cpl_check(cpl, TOKEN_RIGHT_BRACE) || cpl_check(cpl, TOKEN_EOF))){
+        cpl_compile_declaration(cpl);
+    }
+    cpl_consume(cpl, TOKEN_RIGHT_BRACE, "expected '}' after function body");
+    cpl_emit_bytes(cpl, OP_NIL, OP_RETURN);
+    cpl_end_func(cpl, lastLocalsStart); // TODO: fix this
+    cpl->script = backup;
+}
+
+static void cpl_compile_anonymous_function(LoxSPCompiler * cpl) {
+    cpl_compile_function_body(cpl, NULL, FUNC_ANONYMOUS);
+}
+
 static void cpl_compile_declaration(LoxSPCompiler * cpl) {
     if(cpl_match(cpl, TOKEN_VAR)) {
         cpl_compile_var_declaration(cpl);
         cpl_consume_semicolon(cpl);
     } else if (cpl_match(cpl, TOKEN_FUN)) {
-        cpl_consume(cpl, TOKEN_IDENTIFIER, "expected an identifier after 'fun' keyword");
-
+        cpl_consume(cpl, TOKEN_IDENTIFIER, "expected identifier after 'fun' keyword");
         const LoxString * name = cpl_intern_str(cpl, cpl->previous.start, cpl->previous.length);
-        LoxFunction * func     = lox_func_create(name, FUNC_ORDINARY);
-        cpl_emit_bytes(cpl, OP_CONST, cpl_add_constant(cpl, OBJ_VAL(func)));
-        cpl_define_var(cpl, cpl->previous);
-
-        LoxFunction * backup   = cpl->script;
-        cpl->script = func;
-        uint32_t lastLocalsStart = cpl_begin_func(cpl);
-            cpl_consume(cpl, TOKEN_LEFT_PAREN, "expected '(' before function parameters");
-            if(!cpl_match(cpl, TOKEN_RIGHT_PAREN)) {
-                do {
-                    cpl_consume(cpl, TOKEN_IDENTIFIER, "expected indentifier for function arguments");
-                    cpl_alloc_local_var(cpl, cpl->previous);
-                    func->arity++;
-                } while(cpl_match(cpl, TOKEN_COMMA));
-                cpl_consume(cpl, TOKEN_RIGHT_PAREN, "expected ')' after function parameter(s)");
-            }
-            cpl_consume(cpl, TOKEN_LEFT_BRACE, "expected '{' before function body");
-            while(!(cpl_check(cpl, TOKEN_RIGHT_BRACE) || cpl_check(cpl, TOKEN_EOF))){
-                cpl_compile_declaration(cpl);
-            }
-            cpl_consume(cpl, TOKEN_RIGHT_BRACE, "expected '}' after function body");
-            cpl_emit_bytes(cpl, OP_NIL, OP_RETURN);
-        cpl_end_func(cpl, lastLocalsStart); // TODO: fix this
-        cpl->script = backup;
+        cpl_compile_function_body(cpl, name, FUNC_ORDINARY);
     } else {
         cpl_compile_statement(cpl);
     }
@@ -654,7 +664,7 @@ static LoxParserRule rules[] = {
     [TOKEN_AND]           = { NULL, cpl_compile_binary, PREC_AND  },
     [TOKEN_ELSE]          = { NULL, NULL, PREC_NONE },
     [TOKEN_FOR]           = { NULL, NULL, PREC_NONE },
-    [TOKEN_FUN]           = { NULL, NULL, PREC_NONE },
+    [TOKEN_FUN]           = { cpl_compile_anonymous_function, NULL, PREC_PRIMARY },
     [TOKEN_IF]            = { NULL, NULL, PREC_NONE },
     [TOKEN_OR]            = { NULL, cpl_compile_binary, PREC_OR   },
     [TOKEN_PRINT]         = { NULL, NULL, PREC_NONE },

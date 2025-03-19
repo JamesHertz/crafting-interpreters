@@ -1,7 +1,7 @@
 [ "for"  "while"  ] @keyword.repeat
 [ "if"   "else"   ] @keyword.condition
 [ "and"  "or"     ] @keyword.operator
-[ "true" "false"  ] @boolean
+[ "true" "false" "nil" ] @boolean
 [ "(" ")" "{" "}" ] @punctuation.bracket
 [ "+" "-" "*" "/" ">=" "<=" ">" "<" "==" "!" "=" ] @operator
 ";"      @punctuation.delimiter

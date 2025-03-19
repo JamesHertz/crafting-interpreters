@@ -9,7 +9,8 @@
 
 typedef enum {
     FUNC_SCRIPT,
-    FUNC_ORDINARY
+    FUNC_ORDINARY,
+    FUNC_ANONYMOUS
 } LoxFuncType;
 
 typedef struct {

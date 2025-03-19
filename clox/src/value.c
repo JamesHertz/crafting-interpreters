@@ -24,18 +24,19 @@ void value_print(LoxValue value){
                     break;
                 case OBJ_FUNC: {
                     LoxFunction * func = VAL_AS_FUNC(value);
-                    if(func->type == FUNC_SCRIPT)
-                        fputs("<script fn>", stdout);
-                    else
-                        printf("<fn %s>", func->name->chars);
-                } break;
 
+                    switch(func->type) {
+                        case FUNC_SCRIPT    : fputs("<script fn>", stdout);      break;
+                        case FUNC_ANONYMOUS : fputs("<anonymous fn>", stdout);   break;
+                        case FUNC_ORDINARY  : printf("<fn %s>", func->name->chars); break;
+                        default: UNREACHABLE();
+                    }
+                } break;
                 default: UNREACHABLE();
             } break;
         default: UNREACHABLE();
     }
 }
-
 
 bool value_eq(LoxValue v1, LoxValue v2) {
     if(v1.type != v2.type) return false;

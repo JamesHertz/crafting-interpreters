@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
+#include "utils.h"
 #include "vm.h"
 
 static char * read_file(const char * path){
@@ -37,9 +38,11 @@ static char * read_file(const char * path){
 
 static void run_file(const char * path){
     char * file_data = read_file(path);
-    interpret(file_data);
+    LoxInterpretResult res = interpret(file_data);
     free(file_data);
+
     // TODO: print status
+    if(res != INTERPRET_OK) exit(1);
 }
 
 static inline void prompt(){
