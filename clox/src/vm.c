@@ -7,32 +7,11 @@
 #include "utils.h"
 
 #include "constants.h"
+#include "native-fn.h"
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-
-#define MAX_STACK_SIZE (MAX_LOCALS * MAX_STACK_FRAMES)
-
-typedef struct {
-    LoxFunction * func;
-    Instruction * ip;
-    LoxValue * locals;
-} LoxCallFrame;
-
-typedef struct {
-    struct {
-        LoxValue values[MAX_STACK_SIZE];
-        size_t length;
-    } stack;
-
-    LoxCallFrame frames[MAX_STACK_FRAMES];
-    size_t frames_count;
-
-    HashMap strings;
-    HashMap globals;
-    LoxObject * objects;
-} LoxVM;
 
 static void vm_init(LoxVM * vm){
     map_init(&vm->strings);
@@ -40,6 +19,7 @@ static void vm_init(LoxVM * vm){
     vm->objects      = NULL;
     vm->stack.length = 0;
     vm->frames_count = 0;
+
 } 
 
 static void vm_free_objects(LoxVM * vm){
@@ -58,11 +38,6 @@ static void vm_destroy(LoxVM * vm){
     vm->stack.length = 0;
 }
 
-static inline void vm_stack_push(LoxVM * vm, LoxValue value){
-    ASSERTF(vm->stack.length < MAX_STACK_SIZE, "stack overflow");
-    vm->stack.values[vm->stack.length++] = value;
-}
-
 static inline LoxValue vm_stack_get(LoxVM * vm, size_t idx){
     ASSERTF(idx < vm->stack.length, "accessing invalid stack position");
     return vm->stack.values[idx];
@@ -73,18 +48,7 @@ static inline void vm_stack_set(LoxVM * vm, size_t idx, LoxValue value){
     vm->stack.values[idx] = value;
 }
 
-static inline LoxValue vm_stack_pop(LoxVM * vm){
-    ASSERT(vm->stack.length > 0);
-    return vm->stack.values[--vm->stack.length];
-}
-
-static inline  LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
-    size_t idx = vm->stack.length - (1 + distance);
-    ASSERT(idx <= MAX_STACK_SIZE);
-    return vm->stack.values[idx];
-}
-
-static LoxCallFrame * vm_current_frame(LoxVM * vm) {
+static inline LoxCallFrame * vm_current_frame(LoxVM * vm) {
     ASSERT(vm->frames_count > 0);
     return &vm->frames[vm->frames_count - 1];
 }
@@ -99,9 +63,38 @@ static void vm_register_object(LoxVM * vm, LoxObject * obj){
     vm->objects = obj;
 }
 
+void vm_define_native_fn(LoxVM * vm, const char * name, Fn executor, uint8_t arity) {
+    const LoxString * fn_name = lox_str_intern(&vm->strings, name, strlen(name));
+    LoxNativeFn * fn = mem_alloc(sizeof(LoxNativeFn));
 
-static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) __attribute__((format (printf, 2, 3)));
-static void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
+    fn->obj = (LoxObject) {
+        .type = OBJ_NATIVE_FN,
+        .next = NULL,
+    };
+    fn->arity    = arity;
+    fn->executor = executor;
+
+    vm_register_object(vm, &fn->obj);
+    map_set(&vm->globals, fn_name, OBJ_VAL(fn));
+}
+
+void vm_stack_push(LoxVM * vm, LoxValue value){
+    ASSERTF(vm->stack.length < MAX_STACK_SIZE, "stack overflow");
+    vm->stack.values[vm->stack.length++] = value;
+}
+
+LoxValue vm_stack_pop(LoxVM * vm){
+    ASSERT(vm->stack.length > 0);
+    return vm->stack.values[--vm->stack.length];
+}
+
+LoxValue vm_stack_peek(LoxVM * vm, size_t distance){
+    size_t idx = vm->stack.length - (1 + distance);
+    ASSERT(idx <= MAX_STACK_SIZE);
+    return vm->stack.values[idx];
+}
+
+void vm_report_runtime_error(LoxVM * vm, const char * format, ...) {
     va_list list;
     va_start(list, format);
     fputs("[ RunTimeError ] : ", stderr);
@@ -342,24 +335,37 @@ static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
 
             case OP_CALL : {
                 uint8_t args_nr = READ_BYTE();
-                LoxValue value = vm_stack_peek(vm, args_nr);
+                LoxValue value  = vm_stack_peek(vm, args_nr);
 
-                if(!VAL_IS_FUNC(value)) {
+                LoxCallable callable;
+                if(!lox_make_callable(&callable, value)) {
                     vm_report_runtime_error(vm, "can only call functions");
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
-                LoxFunction * func = VAL_AS_FUNC(value);
-                if(func->arity != args_nr) {
+                if(callable.arity != args_nr) {
                     vm_report_runtime_error(
                         vm, "function '%s' expects %u arguments but %u was provided", 
-                        func->name ? func->name->chars : "<anonymous fn>", 
-                        (unsigned) func->arity, (unsigned) args_nr
+                        callable.name, (unsigned) callable.arity, (unsigned) args_nr
                     );
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
-                frame = vm_frames_push(vm, func, args_nr);
+                if(VAL_IS_FUNC(value))
+                    frame = vm_frames_push(vm, VAL_AS_FUNC(value), args_nr);
+                else {
+                    size_t stack_top = vm->stack.length;
+                    VAL_AS_NATIVE_FN(value)->executor(vm);
+
+                    if(stack_top + 1 != vm->stack.length) {
+                        vm_report_runtime_error(vm, "native function call left stack in bad state");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    LoxValue return_value = vm_stack_pop(vm);
+                    vm_stack_pop(vm);
+                    vm_stack_push(vm, return_value);
+                }
             } break;
 
             case OP_RETURN: {
@@ -388,8 +394,11 @@ static LoxInterpretResult vm_run(LoxVM * vm, LoxFunction * script){
 LoxInterpretResult interpret(const char * source){
     LoxVM vm;
     vm_init(&vm);
+    load_native_funcs(&vm);
+
     LoxFunction * script = compile(source, &vm.strings);
     LoxInterpretResult res = script == NULL ? INTERPRET_COMPILE_ERROR : vm_run(&vm, script);
+
     vm_destroy(&vm);
     return res;
 }

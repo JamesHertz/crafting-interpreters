@@ -53,16 +53,6 @@ typedef enum {
 } OpCode;
 
 // WARN: please don't alter the order <values>, <length>, <size> of the inner structs, this is crucial!
-typedef struct {
-    uint32_t line;
-    uint8_t  op_code;
-} Instruction;
-
-typedef struct {
-    DaArray(Instruction) code;
-    DaArray(LoxValue) constants;
-} LoxChunk;
-
 void chunk_init(LoxChunk * c);
 size_t chunk_add_constant(LoxChunk * c, LoxValue value);
 LoxValue chunk_get_constant(const LoxChunk * c, size_t idx);

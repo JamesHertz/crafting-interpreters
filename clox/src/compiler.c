@@ -115,18 +115,8 @@ static uint8_t cpl_add_constant(LoxSPCompiler * cpl, LoxValue constant) {
     return constant_idx;
 }
 
-static const LoxString * cpl_intern_str(LoxSPCompiler * cpl, const char * chars, size_t length) {
-    uint32_t hash = str_hash(chars, length);
-    const LoxString * str;
-    if((str = map_find_str(cpl->strings, chars, length, hash)) == NULL){
-        str = lox_str_copy(chars, length, hash);
-        map_set(cpl->strings, str, BOOL_VAL(true));
-    }
-    return str;
-}
-
 static inline uint8_t cpl_add_str_constant(LoxSPCompiler * cpl, const char * chars, size_t length) {
-    return cpl_add_constant(cpl, OBJ_VAL(cpl_intern_str(cpl, chars, length)));
+    return cpl_add_constant(cpl, OBJ_VAL(lox_str_intern(cpl->strings, chars, length)));
 }
 
 static void cpl_emit_constant(LoxSPCompiler * cpl, LoxValue constant) {
@@ -609,7 +599,7 @@ static void cpl_compile_declaration(LoxSPCompiler * cpl) {
         cpl_consume_semicolon(cpl);
     } else if (cpl_match(cpl, TOKEN_FUN)) {
         cpl_consume(cpl, TOKEN_IDENTIFIER, "expected identifier after 'fun' keyword");
-        const LoxString * name = cpl_intern_str(cpl, cpl->previous.start, cpl->previous.length);
+        const LoxString * name = lox_str_intern(cpl->strings, cpl->previous.start, cpl->previous.length);
         cpl_compile_function_body(cpl, name, FUNC_ORDINARY);
     } else {
         cpl_compile_statement(cpl);

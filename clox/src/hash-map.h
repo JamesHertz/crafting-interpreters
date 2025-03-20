@@ -11,7 +11,7 @@ typedef struct {
     LoxValue value;
 } HashMapEntry;
 
-typedef struct {
+typedef struct __hash_map__ {
     size_t length;
     size_t capacity;
     HashMapEntry * entries;
@@ -36,5 +36,6 @@ void map_destroy(HashMap * map);
 void map_debug(HashMap * map);
 
 uint32_t str_hash(const char* str, size_t length);
+
 
 #endif 

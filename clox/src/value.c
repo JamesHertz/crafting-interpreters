@@ -2,9 +2,10 @@
 #include <string.h>
 
 #include "value.h"
-#include "function.h"
 #include "memory.h"
 #include "utils.h"
+#include "chunk.h"
+#include "hash-map.h"
 
 void value_print(LoxValue value){
     switch(value.type) {
@@ -21,6 +22,9 @@ void value_print(LoxValue value){
             switch(value.as.object->type) {
                 case OBJ_STRING:
                     fputs(VAL_AS_CSTRING(value), stdout);
+                    break;
+                case OBJ_NATIVE_FN:
+                    fputs("<native fn>", stdout);
                     break;
                 case OBJ_FUNC: {
                     LoxFunction * func = VAL_AS_FUNC(value);
@@ -102,4 +106,33 @@ LoxFunction * lox_func_create(const LoxString * name, LoxFuncType type) {
 
     chunk_init(&func->chunk);
     return func;
+}
+
+const LoxString * lox_str_intern(struct __hash_map__ * strings, const char * str, size_t length) {
+    uint32_t hash = str_hash(str, length);
+    const LoxString * lox_str;
+    if((lox_str = map_find_str(strings, str, length, hash)) == NULL) {
+        lox_str = lox_str_copy(str, length, hash);
+        map_set(strings, lox_str, BOOL_VAL(true));
+    }
+    return lox_str;
+}
+
+bool lox_make_callable(LoxCallable * callable, const LoxValue value) {
+    if(VAL_IS_FUNC(value)) {
+        LoxFunction * func = VAL_AS_FUNC(value);
+        callable->arity = func->arity;
+        callable->name  = 
+            func->type == FUNC_ORDINARY ? func->name->chars 
+                : (func->type == FUNC_SCRIPT ? "<script fn>" : "<anonymous fn>" );
+        return true;
+    } 
+
+    if(VAL_IS_NATIVE_FN(value)) {
+        callable->arity = VAL_AS_NATIVE_FN(value)->arity;
+        callable->name  = "<native fn>";
+        return true;
+    }
+
+    return false;
 }
